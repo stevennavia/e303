@@ -78,6 +78,29 @@ export function createInteractables(scene) {
     },
   });
 
+  const profMonitor = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.24, 0.06), grayMat);
+  profMonitor.position.set(6.0, 1.08, -6.5);
+  profMonitor.visible = false;
+
+  const profTower = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.45, 0.32), grayMat);
+  profTower.position.set(5.55, 1.05, -6.0);
+  profTower.visible = false;
+
+  scene.add(profMonitor, profTower);
+  interactableMeshes.push(profMonitor, profTower);
+
+  interactableData.set(profMonitor, {
+    id: 'profMonitor',
+    label: 'monitor del profesor',
+    message: 'El monitor del profesor est\u00e1 bloqueado.',
+  });
+
+  interactableData.set(profTower, {
+    id: 'profTower',
+    label: 'torre del profesor',
+    message: 'La torre del profesor est\u00e1 apagada.',
+  });
+
   return { interactableMeshes, interactableData };
 }
 

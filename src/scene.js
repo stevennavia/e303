@@ -114,6 +114,7 @@ export function initScene(renderer) {
 
   scene.add(createTestRoom());
   scene.add(createRoomDesks());
+  scene.add(createProfDesk());
   scene.add(createProjector());
   scene.add(createBackWall());
   scene.add(createHallway());
@@ -591,18 +592,19 @@ function createHallway() {
     hallwayScreenMats.push(screenMat);
 
     const frame = new THREE.Mesh(
-      new THREE.BoxGeometry(0.45, 0.30, 0.04),
+      new THREE.BoxGeometry(0.50, 0.34, 0.04),
       monMat
     );
     frame.position.set(x, 1.15, 0);
     deskGroup.add(frame);
     const screen = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.38, 0.25),
+      new THREE.PlaneGeometry(0.43, 0.29),
       screenMat
     );
     screen.position.set(x, 1.15, -0.03);
     screen.rotation.y = Math.PI;
     deskGroup.add(screen);
+    hallwayScreenMeshes.push(screen);
     const base = new THREE.Mesh(
       new THREE.BoxGeometry(0.15, 0.02, 0.08),
       monMat
@@ -785,7 +787,7 @@ function createRoomDesks() {
 
   rowZ.forEach((z, ri) => {
     [{ cx: leftCx }, { cx: rightCx }].forEach(side => {
-      const monSpacing = deskW / 5;
+      const monSpacing = deskW / 4;
       const monStart = side.cx - deskW / 2 + monSpacing / 2;
       const deskX = side.cx;
 
@@ -815,11 +817,11 @@ function createRoomDesks() {
       const northZ = z + deskDepth / 2;
       const southZ = z - deskDepth / 2;
 
-      for (let mi = 0; mi < 5; mi++) {
+      for (let mi = 0; mi < 4; mi++) {
         const mx = monStart + mi * monSpacing;
 
-        const frame = new THREE.Mesh(
-          new THREE.BoxGeometry(0.48, 0.33, 0.05),
+          const frame = new THREE.Mesh(
+          new THREE.BoxGeometry(0.54, 0.37, 0.05),
           monMat
         );
         frame.position.set(mx, deskHeight + 0.22, z + 0.025);
@@ -832,7 +834,7 @@ function createRoomDesks() {
         roomScreenMats.push(smat);
 
         const screen = new THREE.Mesh(
-          new THREE.PlaneGeometry(0.42, 0.27),
+          new THREE.PlaneGeometry(0.48, 0.31),
           smat
         );
         screen.position.set(mx, deskHeight + 0.22, z + 0.06);
@@ -1241,6 +1243,119 @@ function createForestView() {
   return group;
 }
 
+function createProfDesk() {
+  const group = new THREE.Group();
+
+  const deskMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.6, metalness: 0.1 });
+  const top = new THREE.Mesh(
+    new THREE.BoxGeometry(1.4, 0.05, 1.0),
+    deskMat
+  );
+  top.position.set(6.0, 0.85, -6.0);
+  top.castShadow = true;
+  top.receiveShadow = true;
+  group.add(top);
+
+  [
+    [0.65, 0.45], [0.65, -0.45], [-0.65, 0.45], [-0.65, -0.45],
+  ].forEach(([lx, lz]) => {
+    const leg = new THREE.Mesh(
+      new THREE.BoxGeometry(0.05, 0.82, 0.05),
+      deskMat
+    );
+    leg.position.set(6.0 + lx, 0.41, -6.0 + lz);
+    group.add(leg);
+  });
+
+  const chairGroup = new THREE.Group();
+  chairGroup.position.set(6.0, 0, -5.6);
+
+  const seatMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.5, metalness: 0.2 });
+  const seat = new THREE.Mesh(
+    new THREE.BoxGeometry(0.42, 0.04, 0.42),
+    seatMat
+  );
+  seat.position.set(0, 0.48, 0);
+  chairGroup.add(seat);
+
+  const back = new THREE.Mesh(
+    new THREE.BoxGeometry(0.42, 0.40, 0.04),
+    seatMat
+  );
+  back.position.set(0, 0.68, -0.18);
+  chairGroup.add(back);
+
+  const stem = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.03, 0.04, 0.44, 8),
+    new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.3, metalness: 0.6 })
+  );
+  stem.position.set(0, 0.24, 0);
+  chairGroup.add(stem);
+
+  const baseGeo = new THREE.CylinderGeometry(0.18, 0.18, 0.02, 16);
+  const basePlate = new THREE.Mesh(
+    baseGeo,
+    new THREE.MeshStandardMaterial({ color: 0x666666, roughness: 0.4, metalness: 0.5 })
+  );
+  basePlate.position.set(0, 0.02, 0);
+  chairGroup.add(basePlate);
+
+  const spokeMat = new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.3, metalness: 0.5 });
+  for (let s = 0; s < 5; s++) {
+    const angle = s * (Math.PI * 2 / 5);
+    const spoke = new THREE.Mesh(
+      new THREE.BoxGeometry(0.03, 0.02, 0.14),
+      spokeMat
+    );
+    spoke.position.set(Math.cos(angle) * 0.08, 0.03, Math.sin(angle) * 0.08);
+    spoke.rotation.y = angle;
+    chairGroup.add(spoke);
+  }
+
+  group.add(chairGroup);
+
+  const monProfMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.4, metalness: 0.1 });
+  const monProfScreenMat = new THREE.MeshStandardMaterial({
+    color: 0x335588, emissive: 0x335588, emissiveIntensity: 0.3,
+  });
+  [-0.3, 0.3].forEach(ox => {
+    const mframe = new THREE.Mesh(
+      new THREE.BoxGeometry(0.55, 0.38, 0.06),
+      monProfMat
+    );
+    mframe.position.set(6.0 + ox, 1.08, -6.5);
+    group.add(mframe);
+
+    const mscreen = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.48, 0.32),
+      monProfScreenMat.clone()
+    );
+    mscreen.position.set(6.0 + ox, 1.08, -6.46);
+    group.add(mscreen);
+  });
+
+  const towerProfMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.5, metalness: 0.15 });
+  const profTower = new THREE.Mesh(
+    new THREE.BoxGeometry(0.20, 0.45, 0.32),
+    towerProfMat
+  );
+  profTower.position.set(5.55, 1.05, -6.0);
+  group.add(profTower);
+
+  const ledProf = new THREE.Mesh(
+    new THREE.SphereGeometry(0.012, 8, 8),
+    new THREE.MeshStandardMaterial({
+      color: 0x33ff33,
+      emissive: 0x33ff33,
+      emissiveIntensity: 1.5,
+    })
+  );
+  ledProf.position.set(5.63, 1.22, -6.0);
+  group.add(ledProf);
+
+  return group;
+}
+
 function createProjector() {
   const group = new THREE.Group();
   group.position.set(0, ROOM_HEIGHT - 0.08, -2.5);
@@ -1418,17 +1533,11 @@ function createCeilingLights() {
 const hallwayFlickerLights = [];
 const hallwayDeadLights = [];
 const hallwayScreenMats = [];
+const hallwayScreenMeshes = [];
 const roomScreenMats = [];
 const roomScreenMeshes = [];
 
-const eyeSystem = {
-  active: false,
-  monitorIndex: -1,
-  eyeCanvas: null,
-  eyeCtx: null,
-  eyeTex: null,
-  frameCount: 0,
-};
+const eyeInstances = [];
 
 function createHallwayLights() {
   const hlMat = new THREE.MeshStandardMaterial({
@@ -1502,7 +1611,7 @@ function createHallwayLights() {
   return group;
 }
 
-export { createWallMaterial, createNoisyTexture, hallwayFlickerLights, hallwayDeadLights, hallwayScreenMats, ceilingFlickerLights, roomScreenMats, roomScreenMeshes };
+export { createWallMaterial, createNoisyTexture, hallwayFlickerLights, hallwayDeadLights, hallwayScreenMats, ceilingFlickerLights, roomScreenMats, roomScreenMeshes, hallwayScreenMeshes, eyeInstances };
 
 export function setLightingPreset(preset) {
   const p = LIGHTING_PRESETS[preset];
@@ -1537,73 +1646,84 @@ export function getCurrentPreset() {
   return currentPreset;
 }
 
-export function initEyeOnMonitor(camera) {
-  if (roomScreenMeshes.length === 0) return;
-  if (eyeSystem.active) return;
-
-  const idx = Math.floor(Math.random() * roomScreenMeshes.length);
-  eyeSystem.monitorIndex = idx;
-  eyeSystem.active = true;
-  eyeSystem.frameCount = 0;
-
-  eyeSystem.eyeCanvas = document.createElement('canvas');
-  eyeSystem.eyeCanvas.width = 256;
-  eyeSystem.eyeCanvas.height = 256;
-  eyeSystem.eyeCtx = eyeSystem.eyeCanvas.getContext('2d');
-  eyeSystem.eyeTex = new THREE.CanvasTexture(eyeSystem.eyeCanvas);
-  eyeSystem.eyeTex.minFilter = THREE.LinearFilter;
-  eyeSystem.eyeTex.magFilter = THREE.LinearFilter;
-
-  roomScreenMeshes[idx].material.map = eyeSystem.eyeTex;
-  roomScreenMeshes[idx].material.emissiveIntensity = 0.8;
-  roomScreenMeshes[idx].material.needsUpdate = true;
-
-  drawEye(camera);
-}
-
-export function clearEyeFromMonitor() {
-  if (!eyeSystem.active) return;
-  const idx = eyeSystem.monitorIndex;
-  if (idx >= 0 && idx < roomScreenMats.length) {
-    roomScreenMeshes[idx].material.map = null;
-    roomScreenMeshes[idx].material.emissiveIntensity = roomScreenMats[idx].emissiveIntensity;
-    roomScreenMeshes[idx].material.needsUpdate = true;
+export function spawnEye(meshes, mats, type) {
+  if (meshes.length === 0) return;
+  const used = new Set(eyeInstances.map(e => e.idx));
+  const blocked = new Set(used);
+  used.forEach(u => {
+    blocked.add(u - 1);
+    blocked.add(u + 1);
+    if (type === 'room') {
+      blocked.add(u - 5);
+      blocked.add(u + 5);
+    }
+  });
+  const candidates = [];
+  for (let i = 0; i < meshes.length; i++) {
+    if (!blocked.has(i)) candidates.push(i);
   }
-  eyeSystem.active = false;
-  eyeSystem.monitorIndex = -1;
+  if (candidates.length === 0) return;
+  const idx = candidates[Math.floor(Math.random() * candidates.length)];
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+
+  meshes[idx].material.map = tex;
+  meshes[idx].material.emissiveIntensity = 0.8;
+  meshes[idx].material.needsUpdate = true;
+
+  const instance = {
+    idx,
+    meshes,
+    mats,
+    canvas,
+    ctx,
+    tex,
+    frameCount: 0,
+    type,
+  };
+  eyeInstances.push(instance);
+  return instance;
 }
 
-export function updateEye(camera) {
-  if (!eyeSystem.active) return;
-  eyeSystem.frameCount++;
-  drawEye(camera);
+export function clearEye(instance) {
+  const idx = instance.idx;
+  instance.meshes[idx].material.map = null;
+  instance.meshes[idx].material.emissiveIntensity = instance.mats[idx].emissiveIntensity;
+  instance.meshes[idx].material.needsUpdate = true;
+  eyeInstances.splice(eyeInstances.indexOf(instance), 1);
 }
 
-function drawEye(camera) {
-  const ctx = eyeSystem.eyeCtx;
+export function updateAllEyes(camera) {
+  for (let i = eyeInstances.length - 1; i >= 0; i--) {
+    const inst = eyeInstances[i];
+    inst.frameCount++;
+    drawEye(inst, camera);
+  }
+}
+
+function drawEye(instance, camera) {
+  const ctx = instance.ctx;
+  const [mesh] = [instance.meshes[instance.idx]];
   const w = 256, h = 256;
   const cx = w / 2, cy = h / 2 + 4;
   const rx = w * 0.44, ry = h * 0.30;
-  const fc = eyeSystem.frameCount;
+  const fc = instance.frameCount;
 
   ctx.clearRect(0, 0, w, h);
 
-  const mx = roomScreenMeshes[eyeSystem.monitorIndex];
-  if (!mx) return;
   const worldPos = new THREE.Vector3();
-  mx.getWorldPosition(worldPos);
+  mesh.getWorldPosition(worldPos);
   const camPos = camera.position.clone();
   let dirX = (camPos.x - worldPos.x) * 0.02;
   let dirY = (camPos.y - worldPos.y) * 0.02;
   const dlen = Math.sqrt(dirX * dirX + dirY * dirY) || 1;
   dirX /= dlen; dirY /= dlen;
-
-  let px = cx + dirX * w * 0.32;
-  let py = cy - dirY * h * 0.28;
-  px += Math.sin(fc * 0.11) * 2.5 + Math.sin(fc * 0.37) * 1.2;
-  py += Math.cos(fc * 0.13) * 2.2 + Math.cos(fc * 0.41) * 1.0;
-  px = Math.max(cx - rx + 18, Math.min(cx + rx - 18, px));
-  py = Math.max(cy - ry + 14, Math.min(cy + ry - 14, py));
 
   const gazeX = dirX * 16;
   const gazeY = -dirY * 12;
@@ -1614,7 +1734,7 @@ function drawEye(camera) {
   const spx = ex + jitX;
   const spy = ey + jitY;
 
-  ctx.fillStyle = '#000000';
+  ctx.fillStyle = '#1a0000';
   ctx.fillRect(0, 0, w, h);
 
   ctx.save();
@@ -1633,6 +1753,11 @@ function drawEye(camera) {
   ctx.fillStyle = scleraGrad;
   ctx.fillRect(ex - scleraR, ey - scleraR, scleraR * 2, scleraR * 2);
   ctx.restore();
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+  ctx.clip();
 
   const veinColors = [
     'rgba(180,60,50,0.20)', 'rgba(160,55,45,0.24)',
@@ -1659,6 +1784,7 @@ function drawEye(camera) {
       ctx.stroke();
     }
   }
+  ctx.restore();
 
   const irisR = w * 0.21;
   const pupilR = w * 0.095;
@@ -1780,19 +1906,18 @@ function drawEye(camera) {
   ctx.clip();
 
   const lidGrad = ctx.createLinearGradient(0, cy - ry, 0, cy - ry * 0.7);
-  lidGrad.addColorStop(0, 'rgba(8,4,2,0.55)');
-  lidGrad.addColorStop(0.5, 'rgba(12,6,3,0.25)');
+  lidGrad.addColorStop(0, 'rgba(20,2,2,0.55)');
+  lidGrad.addColorStop(0.5, 'rgba(15,3,3,0.25)');
   lidGrad.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = lidGrad;
   ctx.fillRect(cx - rx - 4, cy - ry, rx * 2 + 8, ry * 0.7);
 
   const lowerLidGrad = ctx.createLinearGradient(0, cy + ry * 0.7, 0, cy + ry);
   lowerLidGrad.addColorStop(0, 'rgba(0,0,0,0)');
-  lowerLidGrad.addColorStop(0.5, 'rgba(12,6,3,0.15)');
-  lowerLidGrad.addColorStop(1, 'rgba(8,4,2,0.35)');
+  lowerLidGrad.addColorStop(0.5, 'rgba(15,3,3,0.15)');
+  lowerLidGrad.addColorStop(1, 'rgba(20,2,2,0.35)');
   ctx.fillStyle = lowerLidGrad;
   ctx.fillRect(cx - rx - 4, cy + ry * 0.7, rx * 2 + 8, ry * 0.3);
-
   ctx.restore();
 
   ctx.strokeStyle = 'rgba(30,15,10,0.5)';
@@ -1822,10 +1947,10 @@ function drawEye(camera) {
   if (blinkPhase < 14) {
     const bp = blinkPhase / 14;
     const lidH = bp < 0.5 ? bp * 2 * ry * 2.2 : (1 - bp) * 2 * ry * 2.2;
-    ctx.fillStyle = '#000000';
+    ctx.fillStyle = '#1a0000';
     ctx.fillRect(0, 0, w, lidH);
     ctx.fillRect(0, h - lidH * 0.6, w, lidH * 0.6);
   }
 
-  if (eyeSystem.eyeTex) eyeSystem.eyeTex.needsUpdate = true;
+  if (instance.tex) instance.tex.needsUpdate = true;
 }

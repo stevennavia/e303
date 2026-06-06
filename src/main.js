@@ -4,7 +4,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { Timer } from './timer.js';
 import { TIMER_START_SECONDS, PLAYER_SPEED } from './constants.js';
-import { initScene, hallwayFlickerLights, hallwayScreenMats, ceilingFlickerLights, roomScreenMats, roomScreenMeshes, getCurrentPreset, initEyeOnMonitor, clearEyeFromMonitor, updateEye } from './scene.js';
+import { initScene, hallwayFlickerLights, hallwayScreenMats, hallwayScreenMeshes, ceilingFlickerLights, roomScreenMats, roomScreenMeshes, getCurrentPreset, spawnEye, clearEye, updateAllEyes, eyeInstances } from './scene.js';
 import { setupPlayer, clampPlayer } from './player.js';
 import { setupControls, input, requestLock, isLocked } from './controls.js';
 import { createInteractables } from './interactables.js';
@@ -33,7 +33,7 @@ const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
 const bloomPass = new UnrealBloomPass(
   new THREE.Vector2(window.innerWidth, window.innerHeight),
-  0.6, 0.8, 0.4
+  0.7, 0.8, 0.4
 );
 composer.addPass(bloomPass);
 
@@ -72,8 +72,9 @@ const clock = new THREE.Clock();
 
 let gameStarted = false;
 let gameOver = false;
-let _eyeStartT = 0;
-let _eyeLastClearT = 0;
+let _eyeLastSpawnR = 0;
+let _eyeLastSpawnH = 0;
+let _idleTime = 0;
 
 const _blinkState = [];
 function ensureBlinkState(count) {
@@ -91,9 +92,6 @@ function ensureBlinkState(count) {
   }
 }
 
-function eyeSystemActive() {
-  return _eyeStartT > _eyeLastClearT;
-}
 
 function onLockChange(locked) {
   input.ePressed = false;
@@ -160,8 +158,8 @@ function animate() {
 
   hallwayScreenMats.forEach((mat, i) => {
     const speeds = [0.35, 0.50, 0.30, 0.65];
-    const lo = [0.02, 0.01, 0.03, 0.01];
-    const hi = [0.35, 0.20, 0.40, 0.15];
+    const lo = [0.01, 0.01, 0.02, 0.01];
+    const hi = [0.18, 0.10, 0.20, 0.08];
     const s = speeds[i];
     const flicker = Math.sin(t * (0.8 + s * 1.3)) * Math.sin(t * (1.5 + s * 2.7)) * Math.sin(t * (2.1 + s * 4.1));
     mat.emissiveIntensity = lo[i] + Math.abs(flicker) * (hi[i] - lo[i]);
@@ -191,23 +189,32 @@ function animate() {
       } else {
         const p = elapsed / bl.duration;
         const blinkVal = Math.sin(p * Math.PI);
-        mat.emissiveIntensity = blinkVal * 0.12;
+        mat.emissiveIntensity = blinkVal * 0.06;
         return;
       }
     }
-    const flicker = Math.sin(t * (1.7 + i * 0.3)) * Math.sin(t * (3.1 + i * 0.7)) * Math.sin(t * (5.7 + i * 1.1));
-    mat.emissiveIntensity = Math.abs(flicker) * 0.18;
+    const flicker = Math.sin(t * (1.0 + i * 0.2)) * Math.sin(t * (2.0 + i * 0.5)) * Math.sin(t * (3.5 + i * 0.7));
+    mat.emissiveIntensity = Math.abs(flicker) * 0.09;
   });
 
-  if (_eyeStartT > _eyeLastClearT) {
-    updateEye(camera);
-    if (t - _eyeStartT > 20) {
-      clearEyeFromMonitor();
-      _eyeLastClearT = t;
+  updateAllEyes(camera);
+
+  const roomEyes = eyeInstances.filter(e => e.type === 'room');
+  if (roomEyes.length < 4 && t - _eyeLastSpawnR > 8 && roomScreenMeshes.length > 0) {
+    spawnEye(roomScreenMeshes, roomScreenMats, 'room');
+    _eyeLastSpawnR = t;
+  }
+
+  const hwEyes = eyeInstances.filter(e => e.type === 'hallway');
+  if (hwEyes.length < 1 && t - _eyeLastSpawnH > 25 && hallwayScreenMeshes.length > 0) {
+    spawnEye(hallwayScreenMeshes, hallwayScreenMats, 'hallway');
+    _eyeLastSpawnH = t;
+  }
+
+  for (let i = eyeInstances.length - 1; i >= 0; i--) {
+    if (eyeInstances[i].frameCount > 1200) {
+      clearEye(eyeInstances[i]);
     }
-  } else if (roomScreenMeshes.length > 0 && t - _eyeLastClearT > 10) {
-    initEyeOnMonitor(camera);
-    _eyeStartT = t;
   }
 
   if (isLocked() && !gameOver) {
@@ -230,11 +237,19 @@ function animate() {
     if (len > 0) {
       dx /= len;
       dz /= len;
+      _idleTime = 0;
+    } else {
+      _idleTime += delta;
     }
 
     camera.position.x += dx * PLAYER_SPEED * delta;
     camera.position.z += dz * PLAYER_SPEED * delta;
     clampPlayer(camera);
+
+    if (_idleTime > 0.5) {
+      camera.position.y += Math.sin(t * 1.3) * 0.008 + Math.cos(t * 0.7) * 0.005;
+      camera.position.x += Math.sin(t * 0.9) * 0.004;
+    }
 
     const target = checkInteraction(camera);
 

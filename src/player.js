@@ -9,7 +9,7 @@ export function setupPlayer() {
     50
   );
 
-  camera.position.set(0, PLAYER_HEIGHT, -2);
+  camera.position.set(0, PLAYER_HEIGHT, 5.5);
 
   return camera;
 }
