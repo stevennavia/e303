@@ -12,11 +12,14 @@ export function checkInteraction(camera) {
   camera.getWorldDirection(_direction);
   raycaster.set(camera.position, _direction);
 
-  const hits = raycaster.intersectObjects(interactableMeshes);
+  const hits = raycaster.intersectObjects(interactableMeshes, true);
 
   if (hits.length > 0 && hits[0].distance <= INTERACTION_RANGE) {
-    const mesh = hits[0].object;
-    const data = interactableData.get(mesh);
+    let mesh = hits[0].object;
+    while (mesh && !interactableData.has(mesh)) {
+      mesh = mesh.parent;
+    }
+    const data = mesh ? interactableData.get(mesh) : null;
     if (data && currentTarget !== data) {
       currentTarget = data;
       showInteractionPrompt('Presiona E para interactuar');
@@ -32,7 +35,12 @@ export function checkInteraction(camera) {
 }
 
 export function interact(current) {
-  if (current && current.message) {
-    showMessage(current.message);
+  if (current) {
+    if (current.action) {
+      current.action();
+    }
+    if (current.message) {
+      showMessage(current.message);
+    }
   }
 }

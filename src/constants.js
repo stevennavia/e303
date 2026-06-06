@@ -1,4 +1,4 @@
-export const ROOM_WIDTH = 12;
+export const ROOM_WIDTH = 14.4;
 export const ROOM_DEPTH = 14;
 export const SOUTH_EXPAND = 1.4;
 export const ROOM_HEIGHT = 4.0;
@@ -22,11 +22,32 @@ export const FLUORESCENT = {
   glowIntensity: 0.3,
 };
 
+export const LIGHTING_PRESETS = {
+  default: {
+    ambientColor: 0x334466,
+    ambientIntensity: 2.0,
+    fluorescentColor: 0x8899cc,
+    fluorescentIntensity: 5.0,
+    glowEmission: 0x99aadd,
+    glowIntensity: 2.0,
+    fogDensity: 0.008,
+  },
+  blackout: {
+    ambientColor: 0x1a1122,
+    ambientIntensity: 0.70,
+    fluorescentColor: 0x6633aa,
+    fluorescentIntensity: 0.80,
+    glowEmission: 0x7744bb,
+    glowIntensity: 0.4,
+    fogDensity: 0.035,
+  },
+};
+
 export const COLORS = {
   background: 0x0a0a14,
   ambient: 0x334466,
   ambientIntensity: 0.5,
-  wallBase: '#4a4a4e',
+  wallBase: '#4e4e52',
   floorBase: '#3a3a3e',
   hallwayWall: 0x3a3a42,
   hallwayFloor: 0x2a2a30,

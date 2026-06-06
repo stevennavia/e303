@@ -1,7 +1,10 @@
 import * as THREE from 'three';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { Timer } from './timer.js';
 import { TIMER_START_SECONDS, PLAYER_SPEED } from './constants.js';
-import { initScene, hallwayFlickerLights, hallwayScreenMats, ceilingFlickerLights } from './scene.js';
+import { initScene, hallwayFlickerLights, hallwayScreenMats, ceilingFlickerLights, roomScreenMats, roomScreenMeshes, getCurrentPreset, initEyeOnMonitor, clearEyeFromMonitor, updateEye } from './scene.js';
 import { setupPlayer, clampPlayer } from './player.js';
 import { setupControls, input, requestLock, isLocked } from './controls.js';
 import { createInteractables } from './interactables.js';
@@ -15,13 +18,46 @@ const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
 
 document.getElementById('game-container').appendChild(renderer.domElement);
 
-const scene = initScene();
+const scene = initScene(renderer);
 const camera = setupPlayer();
 const controls = setupControls(camera, document.body, onLockChange);
 const { interactableMeshes: _interactables, interactableData: _data } = createInteractables(scene);
+
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloomPass = new UnrealBloomPass(
+  new THREE.Vector2(window.innerWidth, window.innerHeight),
+  0.6, 0.8, 0.4
+);
+composer.addPass(bloomPass);
+
+function startAudio() {
+  const listener = new THREE.AudioListener();
+  camera.add(listener);
+  const audioCtx = listener.context;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  const filter = audioCtx.createBiquadFilter();
+  osc.type = 'sawtooth';
+  osc.frequency.value = 60;
+  filter.type = 'lowpass';
+  filter.frequency.value = 120;
+  filter.Q.value = 0.5;
+  gain.gain.value = 0.03;
+  osc.connect(filter);
+  filter.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start();
+  return { osc, gain };
+}
+
+let audioNodes = null;
 
 const timer = new Timer(TIMER_START_SECONDS);
 timer.onTick((remaining) => {
@@ -36,6 +72,28 @@ const clock = new THREE.Clock();
 
 let gameStarted = false;
 let gameOver = false;
+let _eyeStartT = 0;
+let _eyeLastClearT = 0;
+
+const _blinkState = [];
+function ensureBlinkState(count) {
+  while (_blinkState.length < count) {
+    _blinkState.push({
+      nextT: 2 + Math.random() * 10,
+      duration: 0.15 + Math.random() * 0.45,
+      blinking: false,
+      startT: 0,
+      flutter: Math.random() < 0.25,
+      flutterCount: 0,
+      flutterMax: 2 + Math.floor(Math.random() * 2),
+      flutterGap: 0.08 + Math.random() * 0.15,
+    });
+  }
+}
+
+function eyeSystemActive() {
+  return _eyeStartT > _eyeLastClearT;
+}
 
 function onLockChange(locked) {
   input.ePressed = false;
@@ -45,11 +103,14 @@ function onLockChange(locked) {
       gameStarted = true;
       timer.start();
       hideStartOverlay();
+      audioNodes = startAudio();
     } else {
       timer.resume();
+      if (audioNodes) audioNodes.gain.gain.value = 0.03;
     }
   } else {
     timer.pause();
+    if (audioNodes) audioNodes.gain.gain.value = 0;
   }
 }
 
@@ -63,6 +124,7 @@ window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  composer.setSize(window.innerWidth, window.innerHeight);
 });
 
 function animate() {
@@ -74,23 +136,25 @@ function animate() {
 
   const t = clock.elapsedTime;
 
-  hallwayFlickerLights.forEach(({ light, panel, baseIntensity, phase, isEmergency }) => {
-    if (isEmergency) {
-      const flicker = Math.sin(t * 8.0 + phase) * 0.3 + Math.sin(t * 13.0 + phase * 2) * 0.2;
-      light.intensity = Math.max(0.1, baseIntensity + flicker);
+  hallwayFlickerLights.forEach((item) => {
+    if (item.isEmergency) {
+      const flicker = Math.sin(t * 8.0 + item.phase) * 0.3 + Math.sin(t * 13.0 + item.phase * 2) * 0.2;
+      item.light.intensity = Math.max(0.1, item.baseIntensity + flicker);
     } else {
-      const flicker = Math.sin(t * 6.0 + phase) * 1.5 + Math.sin(t * 17.0 + phase * 3) * 1.0;
-      light.intensity = Math.max(0.2, baseIntensity + flicker);
+      const flicker = Math.sin(t * 6.0 + item.phase) * 1.5 + Math.sin(t * 17.0 + item.phase * 3) * 1.0;
+      item.light.intensity = Math.max(0.2, item.baseIntensity + flicker);
     }
   });
 
-  ceilingFlickerLights.forEach(({ light, panel, baseIntensity, phase, isDead }) => {
-    if (isDead) {
-      const glitch = Math.sin(t * 1.3 + phase) * Math.sin(t * 3.1 + phase);
-      light.intensity = glitch > 0.85 ? 0.08 : 0.02;
+  ceilingFlickerLights.forEach((item) => {
+    if (getCurrentPreset() === 'default') {
+      item.light.intensity = item.baseIntensity;
+    } else if (item.isDead) {
+      const glitch = Math.sin(t * 1.3 + item.phase) * Math.sin(t * 3.1 + item.phase);
+      item.light.intensity = glitch > 0.85 ? 0.08 : 0.02;
     } else {
-      const flicker = Math.sin(t * 2.7 + phase) * 0.08 + Math.sin(t * 5.1 + phase * 1.7) * 0.05;
-      light.intensity = Math.max(0.08, baseIntensity + flicker);
+      const flicker = Math.sin(t * 2.7 + item.phase) * 0.08 + Math.sin(t * 5.1 + item.phase * 1.7) * 0.05;
+      item.light.intensity = Math.max(0.08, item.baseIntensity + flicker);
     }
   });
 
@@ -102,6 +166,49 @@ function animate() {
     const flicker = Math.sin(t * (0.8 + s * 1.3)) * Math.sin(t * (1.5 + s * 2.7)) * Math.sin(t * (2.1 + s * 4.1));
     mat.emissiveIntensity = lo[i] + Math.abs(flicker) * (hi[i] - lo[i]);
   });
+
+  ensureBlinkState(roomScreenMats.length);
+  roomScreenMats.forEach((mat, i) => {
+    if (mat.map) return;
+    const bl = _blinkState[i];
+    if (!bl.blinking && t >= bl.nextT) {
+      bl.blinking = true;
+      bl.startT = t;
+    }
+    if (bl.blinking) {
+      const elapsed = t - bl.startT;
+      if (elapsed > bl.duration) {
+        bl.blinking = false;
+        if (bl.flutter && bl.flutterCount < bl.flutterMax) {
+          bl.flutterCount++;
+          bl.nextT = t + bl.flutterGap;
+          bl.duration = 0.1 + Math.random() * 0.2;
+        } else {
+          bl.flutterCount = 0;
+          bl.nextT = t + 2 + Math.random() * 10;
+          bl.duration = 0.15 + Math.random() * 0.45;
+        }
+      } else {
+        const p = elapsed / bl.duration;
+        const blinkVal = Math.sin(p * Math.PI);
+        mat.emissiveIntensity = blinkVal * 0.12;
+        return;
+      }
+    }
+    const flicker = Math.sin(t * (1.7 + i * 0.3)) * Math.sin(t * (3.1 + i * 0.7)) * Math.sin(t * (5.7 + i * 1.1));
+    mat.emissiveIntensity = Math.abs(flicker) * 0.18;
+  });
+
+  if (_eyeStartT > _eyeLastClearT) {
+    updateEye(camera);
+    if (t - _eyeStartT > 20) {
+      clearEyeFromMonitor();
+      _eyeLastClearT = t;
+    }
+  } else if (roomScreenMeshes.length > 0 && t - _eyeLastClearT > 10) {
+    initEyeOnMonitor(camera);
+    _eyeStartT = t;
+  }
 
   if (isLocked() && !gameOver) {
     const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
@@ -139,7 +246,7 @@ function animate() {
     }
   }
 
-  renderer.render(scene, camera);
+  composer.render();
 }
 
 animate();
