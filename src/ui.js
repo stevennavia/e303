@@ -3,10 +3,13 @@ import { releaseLock, requestLock } from './controls.js';
 const timerEl = document.getElementById('timer');
 const promptEl = document.getElementById('interaction-prompt');
 const messageEl = document.getElementById('game-message');
+const timeNotifEl = document.getElementById('time-notification');
 const startOverlay = document.getElementById('start-overlay');
 const endOverlay = document.getElementById('end-overlay');
+const retryBtn = document.getElementById('retry-btn');
 const comboOverlay = document.getElementById('combo-overlay');
 const comboCloseBtn = document.getElementById('combo-close');
+const comboSubmitBtn = document.getElementById('combo-submit');
 const comboDigitEls = {
   violet: document.getElementById('combo-violet'),
   red: document.getElementById('combo-red'),
@@ -16,7 +19,20 @@ const comboDigitEls = {
 
 let messageTimeout = null;
 let comboState = null;
+let comboCorrect = null;
 let comboOnChange = null;
+let comboOnCheck = null;
+let _persistedCombo = { violet: 0, red: 0, green: 0, blue: 0 };
+
+export function showComboUI(state, onChange, onCheck) {
+  comboState = _persistedCombo;
+  comboCorrect = state;
+  comboOnChange = onChange || null;
+  comboOnCheck = onCheck || null;
+  updateComboDisplays();
+  releaseLock();
+  comboOverlay.classList.add('active');
+}
 
 export function showStartOverlay() {
   startOverlay.style.display = 'flex';
@@ -33,6 +49,10 @@ export function showEndOverlay() {
 export function hideEndOverlay() {
   endOverlay.classList.remove('active');
 }
+
+retryBtn.addEventListener('click', () => {
+  location.reload();
+});
 
 export function updateTimerDisplay(formatted) {
   timerEl.textContent = formatted;
@@ -55,7 +75,24 @@ export function showMessage(text) {
 
   messageTimeout = setTimeout(() => {
     messageEl.classList.remove('visible');
-  }, 3000);
+  }, 1500);
+}
+
+let timeNotifTimeout = null;
+export function showTimeNotification(amount) {
+  if (timeNotifTimeout) clearTimeout(timeNotifTimeout);
+
+  timeNotifEl.textContent = amount > 0 ? `+${amount}s` : `${amount}s`;
+  timeNotifEl.className = amount > 0 ? 'gain visible' : 'loss visible';
+
+  timerEl.classList.remove('shake');
+  void timerEl.offsetWidth;
+  timerEl.classList.add('shake');
+
+  timeNotifTimeout = setTimeout(() => {
+    timeNotifEl.classList.remove('visible');
+    timerEl.classList.remove('shake');
+  }, 2000);
 }
 
 function updateComboDisplays() {
@@ -73,14 +110,6 @@ function setDigit(key, value) {
   if (comboOnChange) comboOnChange();
 }
 
-export function showComboUI(state, onChange) {
-  comboState = state;
-  comboOnChange = onChange || null;
-  updateComboDisplays();
-  releaseLock();
-  comboOverlay.classList.add('active');
-}
-
 export function hideComboUI() {
   comboOverlay.classList.remove('active');
   requestLock();
@@ -94,6 +123,12 @@ export function initComboUI() {
   comboOverlay.addEventListener('click', (e) => {
     e.stopPropagation();
     if (e.target === comboOverlay) hideComboUI();
+  });
+  comboSubmitBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (comboOnCheck && comboState && comboCorrect) {
+      comboOnCheck(comboState, comboCorrect);
+    }
   });
   const cells = comboOverlay.querySelectorAll('.combo-cell');
   cells.forEach((cell) => {

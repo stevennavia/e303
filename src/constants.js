@@ -11,7 +11,7 @@ export const MOUSE_SENSITIVITY = 0.5;
 
 export const INTERACTION_RANGE = 3;
 
-export const TIMER_START_SECONDS = 600;
+export const TIMER_START_SECONDS = 480;
 
 export const FLUORESCENT = {
   color: 0x8899cc,

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
-import { setLightingPreset, getCurrentPreset, gameState, connectPower } from './scene.js';
-import { showComboUI } from './ui.js';
+import { setLightingPreset, getCurrentPreset, gameState, connectPower, setWhiteboardGlow } from './scene.js';
+import { showComboUI, hideComboUI, showMessage } from './ui.js';
+import { playAccessGranted, playDoorUnlock1, playDoorUnlock2 } from './audio.js';
 
 const interactableMeshes = [];
 const interactableData = new Map();
@@ -16,11 +17,10 @@ export function createInteractables(scene) {
   const monitor = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.55, 0.8), grayMat);
   monitor.position.set(-5.6, 1.2, -1.5);
 
-  const puerta = new THREE.Mesh(new THREE.BoxGeometry(0.15, 1.0, 0.6), brownMat);
-  puerta.position.set(0, 1.05, 6.0);
-  puerta.rotation.y = Math.PI / 2;
+  const puerta = new THREE.Mesh(new THREE.BoxGeometry(1.2, 2.4, 0.15), brownMat);
+  puerta.position.set(0, 1.2, 6.0);
   puerta.material.transparent = true;
-  puerta.material.opacity = 0;
+  puerta.material.opacity = 0.3;
   puerta.material.depthWrite = false;
 
   const switchGroup = new THREE.Group();
@@ -72,24 +72,30 @@ export function createInteractables(scene) {
   interactableData.set(puerta, {
     id: 'puerta',
     label: 'puerta',
-    message: 'La puerta est\u00e1 cerrada.',
+    message: '',
+    action() {
+      if (gameState.doorUnlocked) {
+        showMessage('La puerta ya est\u00e1 abierta.');
+        return;
+      }
+      showMessage('Puerta cerrada, necesito c\u00f3digo');
+    },
   });
 
   interactableData.set(switchGroup, {
     id: 'lightswitch',
     label: 'interruptor',
-    message: 'Luces encendidas.',
+    message: '',
     action() {
       const next = getCurrentPreset() === 'default' ? 'blackout' : 'default';
       setLightingPreset(next);
+      setWhiteboardGlow(next === 'blackout' ? 1.8 : 0.02);
       if (next === 'blackout') {
         ledMat.color.set(0xff2200);
         ledMat.emissive.set(0xff2200);
-        this.message = 'Corte de luz activado.';
       } else {
         ledMat.color.set(0x33ff33);
         ledMat.emissive.set(0x33ff33);
-        this.message = 'Luces restauradas.';
       }
     },
   });
@@ -200,7 +206,18 @@ export function createInteractables(scene) {
     label: '',
     message: '',
     action() {
-      showComboUI(gameState.combinationDigits);
+      showComboUI(gameState.combinationDigits, null, (entered, correct) => {
+          if (entered.violet === correct.violet &&
+              entered.red === correct.red &&
+              entered.green === correct.green &&
+              entered.blue === correct.blue) {
+            gameState.doorUnlocked = true;
+            playAccessGranted();
+            playDoorUnlock1();
+            playDoorUnlock2();
+            hideComboUI();
+          }
+      });
     },
   });
 

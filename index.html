@@ -12,6 +12,7 @@
 
   <div id="ui-layer">
     <div id="timer">10:00</div>
+    <div id="time-notification"></div>
     <div id="crosshair"></div>
     <div id="interaction-prompt">Presiona E para interactuar</div>
     <div id="game-message"></div>
@@ -27,13 +28,14 @@
   <div id="end-overlay">
     <div class="overlay-content">
       <h1>E303 PERMANECE CERRADA</h1>
+      <button class="retry-btn" id="retry-btn">Reintentar</button>
     </div>
   </div>
 
   <div id="combo-overlay">
     <div class="combo-panel">
       <div class="combo-header">
-        <span class="combo-title">COMBINATION</span>
+        <span class="combo-title">Ingresa la clave</span>
         <button class="combo-close" id="combo-close">&times;</button>
       </div>
       <div class="combo-grid">
@@ -74,6 +76,7 @@
           <div class="combo-label">B</div>
         </div>
       </div>
+      <button class="combo-submit" id="combo-submit">VERIFICAR</button>
     </div>
   </div>
 

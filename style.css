@@ -52,6 +52,45 @@ html, body {
   text-shadow: 0 0 8px rgba(150, 180, 220, 0.5);
 }
 
+#time-notification {
+  position: absolute;
+  top: 60px;
+  right: 24px;
+  font-size: 22px;
+  font-weight: bold;
+  letter-spacing: 2px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+#time-notification.visible {
+  opacity: 1;
+}
+
+#time-notification.gain {
+  color: #44ff88;
+  text-shadow: 0 0 12px rgba(68, 255, 136, 0.6);
+}
+
+#time-notification.loss {
+  color: #ff4444;
+  text-shadow: 0 0 12px rgba(255, 68, 68, 0.6);
+}
+
+@keyframes timer-shake {
+  0%, 100% { transform: translateX(0); }
+  15% { transform: translateX(-6px) rotate(-2deg); }
+  30% { transform: translateX(5px) rotate(1deg); }
+  45% { transform: translateX(-4px) rotate(-1deg); }
+  60% { transform: translateX(3px) rotate(0.5deg); }
+  75% { transform: translateX(-2px); }
+}
+
+#timer.shake {
+  animation: timer-shake 0.5s ease;
+}
+
 #interaction-prompt {
   position: absolute;
   bottom: 80px;
@@ -150,6 +189,25 @@ html, body {
 
 .overlay-content {
   text-align: center;
+}
+
+.retry-btn {
+  margin-top: 30px;
+  padding: 12px 36px;
+  font-family: 'Courier New', monospace;
+  font-size: 18px;
+  letter-spacing: 3px;
+  background: transparent;
+  border: 1px solid #445566;
+  color: #8899bb;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.retry-btn:hover {
+  background: rgba(68, 85, 102, 0.2);
+  border-color: #8899bb;
+  color: #ccddee;
 }
 
 .overlay-content h1 {
@@ -292,4 +350,25 @@ html, body {
   font-size: 11px;
   letter-spacing: 2px;
   color: #556677;
+}
+
+.combo-submit {
+  margin-top: 20px;
+  width: 100%;
+  padding: 10px;
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
+  letter-spacing: 3px;
+  background: #1a1a22;
+  border: 1px solid #2a2a35;
+  color: #778899;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.15s;
+}
+
+.combo-submit:hover {
+  background: #252530;
+  color: #ffffff;
+  border-color: #445566;
 }

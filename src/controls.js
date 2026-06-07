@@ -4,6 +4,7 @@ import { MOUSE_SENSITIVITY } from './constants.js';
 export const input = {
   w: false, a: false, s: false, d: false,
   ePressed: false,
+  fPressed: false,
 };
 
 let controls = null;
@@ -27,6 +28,7 @@ export function setupControls(camera, domElement, lockCallback) {
       case 'KeyS': case 'ArrowDown':  input.s = true; break;
       case 'KeyD': case 'ArrowRight': input.d = true; break;
       case 'KeyE': input.ePressed = true; break;
+      case 'KeyF': input.fPressed = true; break;
     }
   });
 
@@ -36,6 +38,7 @@ export function setupControls(camera, domElement, lockCallback) {
       case 'KeyA': case 'ArrowLeft':  input.a = false; break;
       case 'KeyS': case 'ArrowDown':  input.s = false; break;
       case 'KeyD': case 'ArrowRight': input.d = false; break;
+      case 'KeyF': input.fPressed = false; break;
     }
   });
 

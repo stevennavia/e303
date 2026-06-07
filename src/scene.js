@@ -5,6 +5,7 @@ import {
   PASILLO_WIDTH, PASILLO_HEIGHT, SOUTH_EXPAND,
   LIGHTING_PRESETS,
 } from './constants.js';
+import { showMessage, updateTimerDisplay, showTimeNotification } from './ui.js';
 
 function createNoisyTexture(baseHex, noiseAmount = 18) {
   const size = 256;
@@ -115,11 +116,14 @@ export function initScene(renderer) {
   scene.add(createTestRoom());
   scene.add(createRoomDesks());
   scene.add(createProfDesk());
+  deskColliders.push({ minX: 5.2, maxX: 6.8, minZ: -6.1, maxZ: -4.9 });
   scene.add(createProjector());
   scene.add(createBackWall());
   scene.add(createHallway());
   scene.add(createCity());
   scene.add(createForestView());
+  scene.add(createWhiteboard());
+  deskColliders.push({ minX: -7.0, maxX: -5.2, minZ: -8.5, maxZ: -7.5 });
   scene.add(createCeilingLights());
   scene.add(createHallwayLights());
   scene.add(createDustParticles());
@@ -786,8 +790,28 @@ function createRoomDesks() {
   const chairBackMat = new THREE.MeshStandardMaterial({ color: 0x1a2a1a, roughness: 0.8, metalness: 0.05 });
   const sepMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.8 });
 
+  const allChairPositions = [];
   rowZ.forEach((z, ri) => {
-    [{ cx: leftCx }, { cx: rightCx }].forEach(side => {
+    [{ cx: leftCx }, { cx: rightCx }].forEach((side, si) => {
+      const monSpacing = deskW / 4;
+      const monStart = side.cx - deskW / 2 + monSpacing / 2;
+      const northZ = z + deskDepth / 2;
+      const chairZ = northZ - 0.2;
+      for (let mi = 0; mi < 4; mi++) {
+        const mx = monStart + mi * monSpacing;
+        allChairPositions.push({ mx, chairZ, ri, si, mi });
+      }
+    });
+  });
+
+  const selectedChairIndices = new Set();
+  while (selectedChairIndices.size < 5) {
+    selectedChairIndices.add(Math.floor(Math.random() * allChairPositions.length));
+  }
+
+  let chairIdx = -1;
+  rowZ.forEach((z, ri) => {
+    [{ cx: leftCx }, { cx: rightCx }].forEach((side, si) => {
       const monSpacing = deskW / 4;
       const monStart = side.cx - deskW / 2 + monSpacing / 2;
       const deskX = side.cx;
@@ -815,11 +839,13 @@ function createRoomDesks() {
         group.add(leg);
       });
 
-      const northZ = z + deskDepth / 2;
-      const southZ = z - deskDepth / 2;
-
       for (let mi = 0; mi < 4; mi++) {
+        chairIdx++;
         const mx = monStart + mi * monSpacing;
+        const isPuzzle = selectedChairIndices.has(chairIdx);
+        const chairOffset = isPuzzle ? 0.4 : 0;
+
+        const northZ = z + deskDepth / 2;
 
           const frame = new THREE.Mesh(
           new THREE.BoxGeometry(0.54, 0.37, 0.05),
@@ -857,31 +883,59 @@ function createRoomDesks() {
         cable.position.set(mx + 0.27, deskHeight + deskThick / 2 + 0.02, z);
         group.add(cable);
 
-        const chairZ = northZ - 0.2;
+        const chairZ = northZ - 0.2 + chairOffset;
         const seatY = 0.46;
+
+        const activeChairMat = isPuzzle
+          ? new THREE.MeshStandardMaterial({ color: 0x1a1a2a, roughness: 0.5, metalness: 0.2, emissive: 0x2244ff, emissiveIntensity: 0 })
+          : chairMat;
+        const activeChairBackMat = isPuzzle
+          ? new THREE.MeshStandardMaterial({ color: 0x1a1a2a, roughness: 0.6, metalness: 0.15, emissive: 0x2244ff, emissiveIntensity: 0 })
+          : chairBackMat;
 
         const seat = new THREE.Mesh(
           new THREE.BoxGeometry(0.35, 0.04, 0.35),
-          chairMat
+          activeChairMat
         );
         seat.position.set(mx, seatY, chairZ);
         group.add(seat);
 
         const back = new THREE.Mesh(
           new THREE.BoxGeometry(0.35, 0.35, 0.04),
-          chairBackMat
+          activeChairBackMat
         );
         back.position.set(mx, seatY + 0.18, chairZ + 0.16);
         group.add(back);
 
         const legGeo = new THREE.CylinderGeometry(0.015, 0.015, 0.42, 6);
+        const legRefs = [];
         [
           [0.13, 0.13], [0.13, -0.13], [-0.13, 0.13], [-0.13, -0.13],
         ].forEach(([lx, lz]) => {
-          const legC = new THREE.Mesh(legGeo, chairMat);
+          const legC = new THREE.Mesh(legGeo, isPuzzle ? activeChairMat : chairMat);
           legC.position.set(mx + lx, 0.23, chairZ + lz);
           group.add(legC);
+          legRefs.push(legC);
         });
+
+        if (isPuzzle) {
+          bluePuzzleChairRefs.push({
+            seat,
+            back,
+            legs: legRefs,
+            seatMat: activeChairMat,
+            backMat: activeChairBackMat,
+            screen,
+            screenMat: smat,
+            originalZ: northZ - 0.2,
+            offsetZ: chairZ,
+            mx,
+            seatY,
+            pushing: false,
+            progress: 0,
+            pushed: false,
+          });
+        }
       }
     });
 
@@ -894,6 +948,29 @@ function createRoomDesks() {
       sep.position.set(0, 0.005, sepZ);
       group.add(sep);
     }
+  });
+
+  const violetCandidates = [];
+  for (let i = 0; i < roomScreenMeshes.length; i++) {
+    if (!roomScreenMeshes[i].userData.blueCodeScreen) violetCandidates.push(i);
+  }
+  if (violetCandidates.length > 0) {
+    const vIdx = violetCandidates[Math.floor(Math.random() * violetCandidates.length)];
+    violetEyeState.targetScreenIdx = vIdx;
+    gameState.violetCode.targetScreenIdx = vIdx;
+    roomScreenMeshes[vIdx].userData.violetCodeScreen = true;
+  }
+
+  deskColliders.length = 0;
+  rowZ.forEach((z) => {
+    [leftCx, rightCx].forEach((cx) => {
+      deskColliders.push({
+        minX: cx - deskW / 2,
+        maxX: cx + deskW / 2,
+        minZ: z - deskDepth / 2,
+        maxZ: z + deskDepth / 2 + 0.35,
+      });
+    });
   });
 
   return group;
@@ -1160,7 +1237,7 @@ function createForestView() {
   const trees = [];
   for (let i = 0; i < 100; i++) {
     const tx = (Math.random() - 0.5) * 25;
-    const tz = farZ - 0.5 - Math.random() * 5.0;
+    const tz = farZ - 2.5 - Math.random() * 5.0;
     const th = 2.5 + Math.random() * 6.5;
     const r = Math.random();
     let type;
@@ -1589,6 +1666,181 @@ const ceilingFlickerLights = [];
 let sceneAmbient = null;
 let mainScene = null;
 let currentPreset = 'default';
+let _wbCanvas = null;
+let _wbCtx = null;
+let _wbTex = null;
+let _wbMat = null;
+let _wbInfMat = null;
+
+export function setWhiteboardGlow(intensity) {
+  if (_wbMat) _wbMat.emissiveIntensity = intensity;
+  if (_wbInfMat) {
+    _wbInfMat.opacity = intensity > 0.5 ? 0.7 : 0;
+  }
+}
+
+function drawWhiteboardCanvas(ctx) {
+  const w = 512, h = 512;
+  ctx.fillStyle = '#0a0a0e';
+  ctx.fillRect(0, 0, w, h);
+
+  ctx.strokeStyle = '#1a1a22';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(6, 6, w - 12, h - 12);
+
+  const col = '#1a1a2a';
+
+  function terrorText(text, x, y, size, rot) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(rot || (Math.random() - 0.5) * 0.015);
+    ctx.fillStyle = col;
+    ctx.font = `italic ${size}px "Courier New", monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.globalAlpha = 0.5 + Math.random() * 0.15;
+    ctx.fillText(text, 0, 0);
+    ctx.restore();
+  }
+
+  terrorText('Entre infinitas ideas', w / 2, 130, 26);
+  terrorText('se esconde una clave.', w / 2, 170, 24);
+  terrorText('Dale una vuelta', w / 2, 230, 26, 0.02);
+  terrorText('y ver\u00e1s su verdad.', w / 2, 270, 24);
+
+  for (let i = 0; i < 6; i++) {
+    const sx = 30 + Math.random() * 180;
+    const sy = 360 + Math.random() * 100;
+    const sr = 1.5 + Math.random() * 4;
+    ctx.strokeStyle = '#12121a';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.arc(sx, sy, sr, 0, Math.PI * (1 + Math.random()));
+    ctx.stroke();
+  }
+}
+
+function createWhiteboard() {
+  const group = new THREE.Group();
+  const bw = 1.8, bh = 1.6, bd = 0.03, fw = 0.06;
+  const boardBottom = 0.6;
+
+  const ironMat = new THREE.MeshStandardMaterial({
+    color: 0x3a3a3a, roughness: 0.3, metalness: 0.8,
+  });
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+
+  drawWhiteboardCanvas(ctx);
+
+  const boardTex = new THREE.CanvasTexture(canvas);
+  boardTex.minFilter = THREE.LinearFilter;
+  boardTex.magFilter = THREE.LinearFilter;
+  _wbCanvas = canvas;
+  _wbCtx = ctx;
+  _wbTex = boardTex;
+
+  const texMat = new THREE.MeshStandardMaterial({
+    color: 0x0a0a0e,
+    map: boardTex,
+    emissiveMap: boardTex,
+    emissive: 0x8800ff,
+    emissiveIntensity: 0.02,
+    roughness: 0.9,
+    metalness: 0.0,
+  });
+  _wbMat = texMat;
+
+  const board = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, bd), texMat);
+  board.position.set(0, bh / 2 + boardBottom, 0);
+  group.add(board);
+
+  const infCanvas = document.createElement('canvas');
+  infCanvas.width = 64;
+  infCanvas.height = 64;
+  const infCtx = infCanvas.getContext('2d');
+  infCtx.clearRect(0, 0, 64, 64);
+  infCtx.save();
+  infCtx.translate(32, 32);
+  infCtx.rotate(0.03);
+  infCtx.strokeStyle = '#ff2222';
+  infCtx.lineWidth = 2.5;
+  infCtx.beginPath();
+  infCtx.arc(0, 0, 30, -0.3, Math.PI * 0.8);
+  infCtx.stroke();
+  infCtx.beginPath();
+  infCtx.arc(7, 0, 30, Math.PI * 1.1, Math.PI * 2.2);
+  infCtx.stroke();
+  infCtx.fillStyle = '#ff2222';
+  infCtx.font = '38px serif';
+  infCtx.textAlign = 'center';
+  infCtx.textBaseline = 'middle';
+  infCtx.globalAlpha = 0.7;
+  infCtx.fillText('\u221e', 4, -2);
+  infCtx.restore();
+  const infTex = new THREE.CanvasTexture(infCanvas);
+  const infMat = new THREE.MeshBasicMaterial({
+    map: infTex,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+  });
+  const infMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.35, 0.35), infMat);
+  infMesh.position.set(bw / 2 - 0.35, bh + boardBottom - 0.35, bd / 2 + 0.001);
+  group.add(infMesh);
+  _wbInfMat = infMat;
+
+  const ft = new THREE.Mesh(new THREE.BoxGeometry(bw + fw * 2, fw, fw), ironMat);
+  ft.position.set(0, bh + boardBottom, 0);
+  group.add(ft);
+
+  const fb = ft.clone();
+  fb.position.set(0, boardBottom, 0);
+  group.add(fb);
+
+  const fs = new THREE.Mesh(new THREE.BoxGeometry(fw, bh, fw), ironMat);
+  fs.position.set(-bw / 2 - fw / 2, bh / 2 + boardBottom, 0);
+  group.add(fs);
+
+  const fd = fs.clone();
+  fd.position.set(bw / 2 + fw / 2, bh / 2 + boardBottom, 0);
+  group.add(fd);
+
+  const legL = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, boardBottom, 8), ironMat);
+  legL.position.set(-bw / 2 + 0.2, boardBottom / 2, 0.06);
+  group.add(legL);
+
+  const legR = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, boardBottom, 8), ironMat);
+  legR.position.set(bw / 2 - 0.2, boardBottom / 2, 0.06);
+  group.add(legR);
+
+  const backL = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, boardBottom * 0.85, 6), ironMat);
+  backL.position.set(-bw / 2 + 0.25, boardBottom * 0.45, 0.35);
+  backL.rotation.x = 0.25;
+  group.add(backL);
+
+  const backR = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, boardBottom * 0.85, 6), ironMat);
+  backR.position.set(bw / 2 - 0.25, boardBottom * 0.45, 0.35);
+  backR.rotation.x = 0.25;
+  group.add(backR);
+
+  const crossbar = new THREE.Mesh(new THREE.BoxGeometry(bw - 0.5, 0.025, 0.025), ironMat);
+  crossbar.position.set(0, boardBottom * 0.55, 0.2);
+  group.add(crossbar);
+
+  const baseMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.5, metalness: 0.4 });
+  const base = new THREE.Mesh(new THREE.BoxGeometry(bw - 0.3, 0.03, 0.35), baseMat);
+  base.position.set(0, 0.015, 0.06);
+  group.add(base);
+
+  group.position.set(-6.1, 0, -8.0);
+  group.rotation.y = 0.35;
+
+  return group;
+}
 
 function createCeilingLights() {
   const group = new THREE.Group();
@@ -1680,7 +1932,39 @@ export const gameState = {
   remoteCollected: false,
   powerConnected: false,
   projectorOn: false,
-  combinationDigits: { violet: 0, red: 0, green: 0, blue: 0 },
+  combinationDigits: { violet: 0, red: 8, green: 0, blue: 0 },
+  blueCode: { solved: false, digit: 0, pushedCount: 0 },
+  violetCode: { solved: false, digit: 0, targetScreenIdx: -1 },
+  dizzyEndTime: 0,
+  timer: null,
+  flashlightCollected: false,
+  flashlightOn: false,
+  doorUnlocked: false,
+};
+
+export const bluePuzzleChairRefs = [];
+
+export const deskColliders = [];
+
+export const violetEyeState = {
+  targetScreenIdx: -1,
+  eyeScreenIdx: -1,
+  instance: null,
+  visible: false,
+  timer: 0,
+  duration: 12,
+};
+
+export const questionMonitorState = {
+  active: false,
+  screenIdx: -1,
+  proxy: null,
+  proxyData: null,
+  meshesRef: null,
+  dataRef: null,
+  canvas: null,
+  ctx: null,
+  tex: null,
 };
 
 function createHallwayLights() {
@@ -1871,9 +2155,23 @@ export function createExtraInteractables(scene) {
   const meshes = [];
   const data = new Map();
 
+  let rPos;
+  let rValid;
+  do {
+    rPos = { x: -6 + Math.random() * 12, z: -6 + Math.random() * 10 };
+    rValid = true;
+    for (const rect of deskColliders) {
+      if (rPos.x > rect.minX && rPos.x < rect.maxX &&
+          rPos.z > rect.minZ - 0.3 && rPos.z < rect.maxZ + 0.3) {
+        rValid = false;
+        break;
+      }
+    }
+  } while (!rValid);
+
   const remoteMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.5, metalness: 0.3 });
   const remote = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.03, 0.14), remoteMat);
-  remote.position.set(5.0, 0.02, -3.0);
+  remote.position.set(rPos.x, 0.015, rPos.z);
   scene.add(remote);
   meshes.push(remote);
 
@@ -1881,7 +2179,7 @@ export function createExtraInteractables(scene) {
     color: 0xff2200, emissive: 0xff2200, emissiveIntensity: 1.5,
   });
   const remoteLed = new THREE.Mesh(new THREE.SphereGeometry(0.008, 8, 8), remoteLedMat);
-  remoteLed.position.set(5.0, 0.04, -3.04);
+  remoteLed.position.set(rPos.x, 0.03, rPos.z - 0.04);
   scene.add(remoteLed);
 
   data.set(remote, {
@@ -1914,7 +2212,241 @@ export function createExtraInteractables(scene) {
     });
   }
 
+  let fPos;
+  let valid;
+  do {
+    fPos = { x: -6 + Math.random() * 12, z: -6 + Math.random() * 10 };
+    valid = true;
+    for (const rect of deskColliders) {
+      if (fPos.x > rect.minX && fPos.x < rect.maxX &&
+          fPos.z > rect.minZ - 0.3 && fPos.z < rect.maxZ + 0.3) {
+        valid = false;
+        break;
+      }
+    }
+  } while (!valid);
+
+  const flashGroup = new THREE.Group();
+  flashGroup.position.set(fPos.x, 0.01, fPos.z);
+  flashGroup.scale.set(2, 2, 2);
+
+  const bodyMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.6, metalness: 0.3 });
+  const headMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.4, metalness: 0.5 });
+  const ringMat = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.3, metalness: 0.6 });
+
+  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.025, 0.06, 10), bodyMat);
+  barrel.rotation.x = Math.PI / 2;
+  barrel.position.set(0, 0, 0);
+  flashGroup.add(barrel);
+
+  const head = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.025, 0.025, 10), headMat);
+  head.rotation.x = Math.PI / 2;
+  head.position.set(0, 0, 0.04);
+  flashGroup.add(head);
+
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.026, 0.004, 6, 12), ringMat);
+  ring.position.set(0, 0, 0.028);
+  ring.rotation.x = Math.PI / 2;
+  flashGroup.add(ring);
+
+  const lensMat = new THREE.MeshStandardMaterial({
+    color: 0xffeecc, emissive: 0xffeecc, emissiveIntensity: 1.5,
+  });
+  const lens = new THREE.Mesh(new THREE.SphereGeometry(0.015, 8, 8), lensMat);
+  lens.position.set(0, 0, 0.053);
+  flashGroup.add(lens);
+
+  scene.add(flashGroup);
+  meshes.push(flashGroup);
+
+  data.set(flashGroup, {
+    id: 'flashlight',
+    label: 'linterna',
+    message: 'Presiona E para recoger',
+    action() {
+      if (gameState.flashlightCollected) return;
+      gameState.flashlightCollected = true;
+      flashGroup.visible = false;
+      gameState.flashlightOn = true;
+      this.message = 'Linterna recogida. Presiona F para encender/apagar.';
+    },
+  });
+
+  bluePuzzleChairRefs.forEach((chair, i) => {
+    const proxy = new THREE.Mesh(
+      new THREE.BoxGeometry(0.5, 0.8, 0.5),
+      new THREE.MeshBasicMaterial({ visible: false })
+    );
+    proxy.position.set(chair.mx, chair.seatY + 0.3, chair.offsetZ + 0.15);
+    scene.add(proxy);
+    meshes.push(proxy);
+
+    data.set(proxy, {
+      id: `blueChair_${i}`,
+      label: 'silla resaltada',
+      message: 'Presiona E para empujar la silla',
+      action() {
+        if (chair.pushed) {
+          this.message = 'Ya empujaste esta silla.';
+          return;
+        }
+        chair.pushed = true;
+        chair.pushing = true;
+        chair.progress = 0;
+        gameState.blueCode.pushedCount++;
+
+        this.message = `Silla empujada (${gameState.blueCode.pushedCount}/5)`;
+
+        if (gameState.blueCode.pushedCount === 5) {
+          gameState.blueCode.digit = Math.floor(Math.random() * 10);
+          gameState.combinationDigits.blue = gameState.blueCode.digit;
+          gameState.blueCode.solved = true;
+
+          const canvas = document.createElement('canvas');
+          canvas.width = 256;
+          canvas.height = 256;
+          const ctx = canvas.getContext('2d');
+          ctx.fillStyle = '#0a1a3a';
+          ctx.fillRect(0, 0, 256, 256);
+          ctx.fillStyle = '#4488ff';
+          ctx.font = 'bold 160px Courier New';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(String(gameState.blueCode.digit), 128, 128);
+
+          const tex = new THREE.CanvasTexture(canvas);
+          chair.screen.material.map = tex;
+          chair.screen.material.emissiveMap = tex;
+          chair.screen.material.emissive.set(0xffffff);
+          chair.screen.material.emissiveIntensity = 2.0;
+          chair.screen.material.needsUpdate = true;
+          chair.screen.userData.blueCodeScreen = true;
+
+          showMessage(`Codigo azul revelado: ${gameState.blueCode.digit}`);
+        }
+      },
+    });
+  });
+
+  if (violetEyeState.targetScreenIdx >= 0) {
+    const vScreen = roomScreenMeshes[violetEyeState.targetScreenIdx];
+    const vPos = vScreen.position;
+    const vProxy = new THREE.Mesh(
+      new THREE.BoxGeometry(0.6, 0.5, 0.3),
+      new THREE.MeshBasicMaterial({ visible: false })
+    );
+    vProxy.position.set(vPos.x, vPos.y, vPos.z - 0.15);
+    scene.add(vProxy);
+    meshes.push(vProxy);
+
+    data.set(vProxy, {
+      id: 'violetScreen',
+      label: 'pantalla violeta',
+      message: 'Presiona E para interactuar',
+      action() {
+        if (gameState.violetCode.solved) {
+          this.message = 'Ya descubriste el codigo violeta.';
+          return;
+        }
+        gameState.violetCode.digit = Math.floor(Math.random() * 10);
+        gameState.combinationDigits.violet = gameState.violetCode.digit;
+        gameState.violetCode.solved = true;
+
+        const canvas = document.createElement('canvas');
+        canvas.width = 256;
+        canvas.height = 256;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#1a0030';
+        ctx.fillRect(0, 0, 256, 256);
+        ctx.fillStyle = '#aa44ff';
+        ctx.font = 'bold 160px Courier New';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(String(gameState.violetCode.digit), 128, 128);
+
+        const tex = new THREE.CanvasTexture(canvas);
+        vScreen.material.map = tex;
+        vScreen.material.emissiveMap = tex;
+        vScreen.material.emissive.set(0xffffff);
+        vScreen.material.emissiveIntensity = 2.0;
+        vScreen.material.needsUpdate = true;
+
+        showMessage(`Codigo violeta revelado: ${gameState.violetCode.digit}`);
+      },
+    });
+  }
+
   return { meshes, data };
+}
+
+const EMOTIONS = {
+  neutral: { ryScale: 1, pupilScale: 1, scleraRed: 0, browRaise: 0, blinkSpeed: 1, gazeIntensity: 0.02, jitter: 1 },
+  alarm: { ryScale: 1.3, pupilScale: 1.3, scleraRed: 0.25, browRaise: 0.2, blinkSpeed: 1.5, gazeIntensity: 0.04, jitter: 0.5 },
+  malice: { ryScale: 0.8, pupilScale: 0.8, scleraRed: 0.15, browRaise: -0.15, blinkSpeed: 0.7, gazeIntensity: 0.04, jitter: 0.3 },
+  fear: { ryScale: 1.4, pupilScale: 1.5, scleraRed: 0.45, browRaise: 0.3, blinkSpeed: 2, gazeIntensity: 0.01, jitter: 1.5 },
+  anger: { ryScale: 0.65, pupilScale: 0.65, scleraRed: 0.55, browRaise: -0.25, blinkSpeed: 0.5, gazeIntensity: 0.04, jitter: 0 },
+};
+
+function getEmotionParams(e) {
+  const from = EMOTIONS[e.current] || EMOTIONS.neutral;
+  const to = EMOTIONS[e.target] || EMOTIONS.neutral;
+  const b = e.blend;
+  return {
+    ryScale: from.ryScale + (to.ryScale - from.ryScale) * b,
+    pupilScale: from.pupilScale + (to.pupilScale - from.pupilScale) * b,
+    scleraRed: from.scleraRed + (to.scleraRed - from.scleraRed) * b,
+    browRaise: from.browRaise + (to.browRaise - from.browRaise) * b,
+    blinkSpeed: from.blinkSpeed + (to.blinkSpeed - from.blinkSpeed) * b,
+    gazeIntensity: from.gazeIntensity + (to.gazeIntensity - from.gazeIntensity) * b,
+    jitter: from.jitter + (to.jitter - from.jitter) * b,
+  };
+}
+
+function setEmotion(inst, target) {
+  if (inst.emotion.target === target) return;
+  inst.emotion.current = inst.emotion.target;
+  inst.emotion.target = target;
+  inst.emotion.blend = 0;
+}
+
+function updateEyeEmotion(inst, camera, worldPos) {
+  const e = inst.emotion;
+  if (e.current !== e.target) {
+    e.blend += 0.03;
+    if (e.blend >= 1) {
+      e.blend = 0;
+      e.current = e.target;
+    }
+  }
+  if (inst.type === 'violet') return;
+
+  const dist = camera.position.distanceTo(worldPos);
+
+  if (dist < 1.8 && e.target !== 'fear') {
+    setEmotion(inst, 'fear');
+  } else if (dist < 3 && e.target === 'neutral') {
+    setEmotion(inst, 'alarm');
+  } else if (dist < 3 && inst.stareTimer > 10 && e.target === 'neutral') {
+    setEmotion(inst, 'malice');
+  } else if (dist > 6 && e.target !== 'neutral' && e.current === e.target) {
+    setEmotion(inst, 'neutral');
+  }
+
+  if (inst.stareTimer > 30 && e.target === 'neutral' && Math.random() < 0.002) {
+    setEmotion(inst, Math.random() < 0.5 ? 'malice' : 'anger');
+  }
+  if (inst.stareTimer > 50 && e.target === 'malice' && Math.random() < 0.003) {
+    setEmotion(inst, 'anger');
+  }
+
+  if (Math.random() < 0.001 && e.target === 'neutral') {
+    setEmotion(inst, 'alarm');
+    inst.emotion._alarmTimer = 30;
+  }
+  if (inst.emotion._alarmTimer > 0) {
+    inst.emotion._alarmTimer--;
+    if (inst.emotion._alarmTimer === 0) setEmotion(inst, 'neutral');
+  }
 }
 
 export function spawnEye(meshes, mats, type) {
@@ -1931,7 +2463,7 @@ export function spawnEye(meshes, mats, type) {
   });
   const candidates = [];
   for (let i = 0; i < meshes.length; i++) {
-    if (!blocked.has(i)) candidates.push(i);
+    if (!blocked.has(i) && !meshes[i].userData.blueCodeScreen && !meshes[i].userData.violetCodeScreen && !meshes[i].userData.questionMonitor) candidates.push(i);
   }
   if (candidates.length === 0) return;
   const idx = candidates[Math.floor(Math.random() * candidates.length)];
@@ -1963,6 +2495,15 @@ export function spawnEye(meshes, mats, type) {
     glitchTimer: 0,
     stareTimer: 0,
     saccadeTarget: null,
+    blinkTimer: 120 + Math.floor(Math.random() * 120),
+    blinkPhase: 0,
+    seed: Math.random() * 100,
+    emotion: {
+      current: 'neutral',
+      target: 'neutral',
+      blend: 0,
+      _alarmTimer: 0,
+    },
   };
   eyeInstances.push(instance);
   return instance;
@@ -1970,12 +2511,281 @@ export function spawnEye(meshes, mats, type) {
 
 export function clearEye(instance) {
   const idx = instance.idx;
+  if (instance.meshes[idx].userData.violetCodeScreen) return;
   instance.meshes[idx].material.map = null;
   instance.meshes[idx].material.emissiveMap = null;
   instance.meshes[idx].material.emissive.set(0x445588);
   instance.meshes[idx].material.emissiveIntensity = instance.mats[idx].emissiveIntensity;
   instance.meshes[idx].material.needsUpdate = true;
   eyeInstances.splice(eyeInstances.indexOf(instance), 1);
+}
+
+export function spawnVioletEye() {
+  const tIdx = violetEyeState.targetScreenIdx;
+  if (tIdx < 0) return;
+
+  const used = new Set(eyeInstances.map(e => e.idx));
+  const mi = tIdx % 4;
+  const adjacent = [];
+  if (mi > 0) adjacent.push(tIdx - 1);
+  if (mi < 3) adjacent.push(tIdx + 1);
+  const candidates = adjacent.filter(i =>
+    !used.has(i) && !roomScreenMeshes[i].userData.blueCodeScreen && !roomScreenMeshes[i].userData.violetCodeScreen && !roomScreenMeshes[i].userData.questionMonitor
+  );
+  if (candidates.length === 0) return;
+
+  const eIdx = candidates[Math.floor(Math.random() * candidates.length)];
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+
+  const mesh = roomScreenMeshes[eIdx];
+  mesh.material.map = tex;
+  mesh.material.emissiveMap = tex;
+  mesh.material.emissive.set(0xffffff);
+  mesh.material.emissiveIntensity = 0.4;
+  mesh.material.needsUpdate = true;
+
+  const targetPos = new THREE.Vector3();
+  roomScreenMeshes[tIdx].getWorldPosition(targetPos);
+
+  const instance = {
+    idx: eIdx,
+    meshes: roomScreenMeshes,
+    mats: roomScreenMats,
+    canvas,
+    ctx,
+    tex,
+    frameCount: 0,
+    type: 'violet',
+    glitchType: 0,
+    glitchTimer: 0,
+    stareTimer: 0,
+    saccadeTarget: null,
+    targetWorldPos: targetPos,
+  };
+  eyeInstances.push(instance);
+  violetEyeState.instance = instance;
+  violetEyeState.eyeScreenIdx = eIdx;
+}
+
+export function clearVioletEye() {
+  if (!violetEyeState.instance) return;
+  const inst = violetEyeState.instance;
+  const idx = inst.idx;
+  inst.meshes[idx].material.map = null;
+  inst.meshes[idx].material.emissiveMap = null;
+  inst.meshes[idx].material.emissive.set(0x445588);
+  inst.meshes[idx].material.emissiveIntensity = inst.mats[idx].emissiveIntensity;
+  inst.meshes[idx].material.needsUpdate = true;
+  eyeInstances.splice(eyeInstances.indexOf(inst), 1);
+  violetEyeState.instance = null;
+  violetEyeState.eyeScreenIdx = -1;
+}
+
+export function questionMonitorSpawn(scene, meshes, data) {
+  if (questionMonitorState.active) return null;
+
+  const used = new Set(eyeInstances.map(e => e.idx));
+  const candidates = [];
+  for (let i = 0; i < roomScreenMeshes.length; i++) {
+    if (used.has(i)) continue;
+    if (roomScreenMeshes[i].userData.blueCodeScreen) continue;
+    if (roomScreenMeshes[i].userData.violetCodeScreen) continue;
+    if (roomScreenMeshes[i].userData.questionMonitor) continue;
+    candidates.push(i);
+  }
+  if (candidates.length === 0) return null;
+
+  const idx = candidates[Math.floor(Math.random() * candidates.length)];
+  const screen = roomScreenMeshes[idx];
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+
+  function drawGlitch() {
+    ctx.fillStyle = '#0a0a0a';
+    ctx.fillRect(0, 0, 256, 256);
+
+    for (let i = 0; i < 100; i++) {
+      const r = 30 + Math.random() * 200;
+      const g = 10 + Math.random() * 180;
+      const b = 40 + Math.random() * 200;
+      ctx.fillStyle = `rgba(${r|0},${g|0},${b|0},${0.2 + Math.random() * 0.4})`;
+      ctx.fillRect(Math.random() * 256, Math.random() * 256, Math.random() * 8 + 2, Math.random() * 3 + 1);
+    }
+
+    for (let i = 0; i < 8; i++) {
+      const r = 50 + Math.random() * 200;
+      const g = 20 + Math.random() * 80;
+      const b = 80 + Math.random() * 170;
+      ctx.fillStyle = `rgba(${r|0},${g|0},${b|0},0.2)`;
+      const y = Math.random() * 256;
+      const bh = 2 + Math.random() * 8;
+      const offset = (Math.random() - 0.5) * 40;
+      ctx.fillRect(Math.max(0, offset), y, 256, bh);
+    }
+
+    ctx.globalCompositeOperation = 'lighter';
+    const glitchOffset = (Math.random() - 0.5) * 24;
+    ctx.font = 'bold 160px Courier New';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText('?', 128 + glitchOffset, 128);
+    ctx.fillStyle = `rgba(${100+Math.random()*155|0},${50+Math.random()*100|0},${150+Math.random()*105|0},0.5)`;
+    ctx.fillText('?', 128 - glitchOffset * 0.5, 130 + (Math.random() - 0.5) * 4);
+    ctx.globalCompositeOperation = 'source-over';
+
+    ctx.fillStyle = `rgba(0,0,0,${0.02 + Math.random() * 0.06})`;
+    ctx.fillRect(0, 0, 256, 3 + Math.random() * 10);
+
+    for (let i = 0; i < 256; i += 4) {
+      ctx.fillStyle = `rgba(0,0,0,${0.04 + Math.random() * 0.08})`;
+      ctx.fillRect(0, i, 256, 1);
+    }
+  }
+
+  drawGlitch();
+  const tex = new THREE.CanvasTexture(canvas);
+  screen.material.map = tex;
+  screen.material.emissiveMap = tex;
+  screen.material.emissive.set(0xffffff);
+  screen.material.emissiveIntensity = 1.5;
+  screen.material.needsUpdate = true;
+  screen.userData.questionMonitor = true;
+
+  const pos = screen.position;
+  const proxy = new THREE.Mesh(
+    new THREE.BoxGeometry(0.6, 0.5, 0.3),
+    new THREE.MeshBasicMaterial({ visible: false })
+  );
+  proxy.position.set(pos.x, pos.y, pos.z - 0.15);
+  scene.add(proxy);
+  meshes.push(proxy);
+
+  const proxyData = {
+    id: 'questionMonitor',
+    label: 'monitor misterioso',
+    message: 'Presiona E para interactuar',
+    action() {
+      const roll = Math.random();
+      const now = performance.now() / 1000;
+
+      if (roll < 0.33) {
+        gameState.dizzyEndTime = now + 15;
+        showMessage('Efecto dizzy activado por 15 segundos');
+      } else if (roll < 0.66) {
+        gameState.timer.remaining = Math.min(gameState.timer.duration, gameState.timer.remaining + 30);
+        updateTimerDisplay(gameState.timer.formatted);
+        showTimeNotification(30);
+      } else {
+        gameState.timer.remaining = Math.max(0, gameState.timer.remaining - 30);
+        updateTimerDisplay(gameState.timer.formatted);
+        showTimeNotification(-30);
+      }
+
+      questionMonitorClear();
+    },
+  };
+  data.set(proxy, proxyData);
+
+  questionMonitorState.active = true;
+  questionMonitorState.screenIdx = idx;
+  questionMonitorState.proxy = proxy;
+  questionMonitorState.proxyData = proxyData;
+  questionMonitorState.meshesRef = meshes;
+  questionMonitorState.dataRef = data;
+  questionMonitorState.canvas = canvas;
+  questionMonitorState.ctx = ctx;
+  questionMonitorState.tex = tex;
+
+  return proxy;
+}
+
+export function questionMonitorClear() {
+  if (!questionMonitorState.active) return;
+
+  const idx = questionMonitorState.screenIdx;
+  const screen = roomScreenMeshes[idx];
+  screen.material.map = null;
+  screen.material.emissiveMap = null;
+  screen.material.emissive.set(0x445588);
+  screen.material.emissiveIntensity = roomScreenMats[idx].emissiveIntensity;
+  screen.material.needsUpdate = true;
+  screen.userData.questionMonitor = false;
+
+  if (questionMonitorState.proxy) {
+    const proxy = questionMonitorState.proxy;
+    if (proxy.parent) proxy.parent.remove(proxy);
+    if (questionMonitorState.dataRef) questionMonitorState.dataRef.delete(proxy);
+    if (questionMonitorState.meshesRef) {
+      const mi = questionMonitorState.meshesRef.indexOf(proxy);
+      if (mi !== -1) questionMonitorState.meshesRef.splice(mi, 1);
+    }
+  }
+
+  questionMonitorState.active = false;
+  questionMonitorState.screenIdx = -1;
+  questionMonitorState.proxy = null;
+  questionMonitorState.proxyData = null;
+  questionMonitorState.meshesRef = null;
+  questionMonitorState.dataRef = null;
+  questionMonitorState.canvas = null;
+  questionMonitorState.ctx = null;
+  questionMonitorState.tex = null;
+}
+
+export function updateQuestionGlitch() {
+  if (!questionMonitorState.active || !questionMonitorState.ctx) return;
+  const ctx = questionMonitorState.ctx;
+  const w = 256, h = 256;
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(0, 0, w, h);
+
+  for (let i = 0; i < 80; i++) {
+    const r = 30 + Math.random() * 200;
+    const g = 10 + Math.random() * 180;
+    const b = 40 + Math.random() * 200;
+    ctx.fillStyle = `rgba(${r|0},${g|0},${b|0},${0.2 + Math.random() * 0.4})`;
+    ctx.fillRect(Math.random() * w, Math.random() * h, Math.random() * 6 + 2, Math.random() * 2 + 1);
+  }
+
+  for (let i = 0; i < 6; i++) {
+    const r = 50 + Math.random() * 200;
+    const g = 20 + Math.random() * 80;
+    const b = 80 + Math.random() * 170;
+    ctx.fillStyle = `rgba(${r|0},${g|0},${b|0},0.18)`;
+    const y = Math.random() * h;
+    const bh = 2 + Math.random() * 6;
+    const offset = (Math.random() - 0.5) * 30;
+    ctx.fillRect(Math.max(0, offset), y, w, bh);
+  }
+
+  ctx.globalCompositeOperation = 'lighter';
+  const glitchOffset = (Math.random() - 0.5) * 20;
+  ctx.font = 'bold 160px Courier New';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText('?', 128 + glitchOffset, 128);
+  ctx.fillStyle = `rgba(${100+Math.random()*155|0},${50+Math.random()*100|0},${150+Math.random()*105|0},0.4)`;
+  ctx.fillText('?', 128 - glitchOffset * 0.5, 130 + (Math.random() - 0.5) * 4);
+  ctx.globalCompositeOperation = 'source-over';
+
+  for (let i = 0; i < w; i += 3) {
+    ctx.fillStyle = `rgba(0,0,0,${0.03 + Math.random() * 0.06})`;
+    ctx.fillRect(0, i, w, 1);
+  }
+
+  if (questionMonitorState.tex) questionMonitorState.tex.needsUpdate = true;
 }
 
 export function updateAllEyes(camera) {
@@ -1991,11 +2801,20 @@ function drawEye(instance, camera) {
   const [mesh] = [instance.meshes[instance.idx]];
   const w = 256, h = 256;
   const cx = w / 2, cy = h / 2 + 4;
-  const rx = w * 0.44, ry = h * 0.30;
+  const rx = w * 0.44;
   const fc = instance.frameCount;
+  const isViolet = instance.type === 'violet';
   const worldPos = new THREE.Vector3();
   mesh.getWorldPosition(worldPos);
-  const camPos = camera.position.clone();
+  const lookTarget = instance.targetWorldPos || camera.position;
+  const camPos = lookTarget.clone();
+
+  if (!isViolet) updateEyeEmotion(instance, camera, worldPos);
+  const ep = isViolet ? EMOTIONS.neutral : getEmotionParams(instance.emotion);
+  const ry = h * 0.30 * ep.ryScale;
+
+  const gazeScale = ep.gazeIntensity;
+  const jitScale = ep.jitter;
 
   if (instance.stareTimer > 0) {
     instance.stareTimer--;
@@ -2005,11 +2824,11 @@ function drawEye(instance, camera) {
 
   let dirX, dirY;
   if (instance.stareTimer > 0) {
-    dirX = (camPos.x - worldPos.x) * 0.04;
-    dirY = (camPos.y - worldPos.y) * 0.04;
+    dirX = (camPos.x - worldPos.x) * (gazeScale * 2);
+    dirY = (camPos.y - worldPos.y) * (gazeScale * 2);
   } else {
-    dirX = (camPos.x - worldPos.x) * 0.02;
-    dirY = (camPos.y - worldPos.y) * 0.02;
+    dirX = (camPos.x - worldPos.x) * gazeScale;
+    dirY = (camPos.y - worldPos.y) * gazeScale;
   }
   const dlen = Math.sqrt(dirX * dirX + dirY * dirY) || 1;
   dirX /= dlen; dirY /= dlen;
@@ -2018,12 +2837,19 @@ function drawEye(instance, camera) {
   const gazeY = (instance.stareTimer > 0 ? -30 : -12) * dirY;
   const ex = cx + gazeX + (Math.random() - 0.5) * (instance.stareTimer > 0 ? 1 : 2);
   const ey = cy + gazeY + (Math.random() - 0.5) * (instance.stareTimer > 0 ? 1 : 2);
-  const jitX = Math.sin(fc * 0.11) * 2 + Math.sin(fc * 0.37) * 1;
-  const jitY = Math.cos(fc * 0.13) * 1.8 + Math.cos(fc * 0.41) * 0.8;
-  const spx = ex + jitX + (Math.random() - 0.5) * (instance.stareTimer > 0 ? 0 : 3);
-  const spy = ey + jitY + (Math.random() - 0.5) * (instance.stareTimer > 0 ? 0 : 3);
 
-  ctx.fillStyle = '#000000';
+  const microX = Math.sin(fc * 0.73) * 2.5 + Math.sin(fc * 1.51) * 2.0;
+  const microY = Math.cos(fc * 0.61) * 2.0 + Math.cos(fc * 1.43) * 1.5;
+
+  const driftX = Math.sin(fc * 0.03 + (instance.seed || 0)) * 6;
+  const driftY = Math.cos(fc * 0.025 + (instance.seed || 0) * 2) * 4;
+
+  const jitX = (Math.sin(fc * 0.11) * 2 + Math.sin(fc * 0.37) * 1) * jitScale;
+  const jitY = (Math.cos(fc * 0.13) * 1.8 + Math.cos(fc * 0.41) * 0.8) * jitScale;
+  const spx = ex + jitX + microX + driftX + (Math.random() - 0.5) * (instance.stareTimer > 0 ? 0 : 3);
+  const spy = ey + jitY + microY + driftY + (Math.random() - 0.5) * (instance.stareTimer > 0 ? 0 : 3);
+
+  ctx.fillStyle = isViolet ? '#0a0014' : '#000000';
   ctx.fillRect(0, 0, w, h);
 
   ctx.save();
@@ -2033,30 +2859,55 @@ function drawEye(instance, camera) {
 
   const scleraR = rx * 1.3;
   const scleraGrad = ctx.createRadialGradient(ex, ey, scleraR * 0.05, ex, ey, scleraR);
-  scleraGrad.addColorStop(0, '#fafafa');
-  scleraGrad.addColorStop(0.4, '#e8e8e8');
-  scleraGrad.addColorStop(0.7, '#b0b0b0');
-  scleraGrad.addColorStop(0.9, '#666666');
-  scleraGrad.addColorStop(1, '#444444');
+  if (isViolet) {
+    scleraGrad.addColorStop(0, '#f0e8f8');
+    scleraGrad.addColorStop(0.4, '#d8c8e8');
+    scleraGrad.addColorStop(0.7, '#a088b0');
+    scleraGrad.addColorStop(0.9, '#503860');
+    scleraGrad.addColorStop(1, '#302040');
+  } else {
+    scleraGrad.addColorStop(0, '#f5f0e8');
+    scleraGrad.addColorStop(0.4, '#e8e0d5');
+    scleraGrad.addColorStop(0.7, '#cdc0b0');
+    scleraGrad.addColorStop(0.9, '#b8a898');
+    scleraGrad.addColorStop(1, '#a09080');
+  }
   ctx.fillStyle = scleraGrad;
   ctx.fillRect(ex - scleraR, ey - scleraR, scleraR * 2, scleraR * 2);
-  ctx.restore();
 
-  ctx.save();
-  ctx.beginPath();
-  ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
-  ctx.clip();
-  for (let v = 0; v < 10; v++) {
-    const vx = ex + (Math.random() - 0.5) * rx * 1.4;
-    const vy = ey + (Math.random() - 0.5) * ry * 1.4;
-    ctx.strokeStyle = `rgba(180,${20+Math.random()*30},${20+Math.random()*30},${0.12+Math.random()*0.18})`;
-    ctx.lineWidth = 0.4 + Math.random() * 0.8;
-    ctx.beginPath();
-    ctx.moveTo(vx, vy);
-    for (let s = 0; s < 4; s++) {
-      ctx.lineTo(vx + (Math.random() - 0.5) * 18, vy + (Math.random() - 0.5) * 10);
+  if (!isViolet) {
+    for (let c = 0; c < 2; c++) {
+      const side = c === 0 ? -1 : 1;
+      const cg = ctx.createRadialGradient(ex + side * rx * 0.8, ey + ry * 0.1, 0, ex + side * rx * 0.8, ey + ry * 0.1, rx * 0.4);
+      cg.addColorStop(0, 'rgba(180,120,100,0.25)');
+      cg.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = cg;
+      ctx.beginPath();
+      ctx.ellipse(ex + side * rx * 0.8, ey + ry * 0.1, rx * 0.4, ry * 0.3, 0, 0, Math.PI * 2);
+      ctx.fill();
     }
-    ctx.stroke();
+
+    for (let v = 0; v < 8; v++) {
+      const angle = Math.random() * Math.PI - Math.PI / 2;
+      const dist = rx * (0.6 + Math.random() * 0.5);
+      const startX = ex + Math.cos(angle) * dist;
+      const startY = ey + Math.sin(angle) * dist;
+      const pulse = 0.7 + Math.sin(fc * 0.05 + v * 3) * 0.3;
+      const redBoost = isViolet ? 0 : ep.scleraRed;
+      ctx.strokeStyle = `rgba(${180 + redBoost * 100},${Math.floor(15 - redBoost * 10)},${Math.floor(15 - redBoost * 10)},${(0.25 + Math.random() * 0.2 + redBoost * 0.3) * pulse})`;
+      ctx.lineWidth = 0.5 + Math.random() * 1.0;
+      ctx.beginPath();
+      ctx.moveTo(startX, startY);
+      const steps = 3 + Math.floor(Math.random() * 4);
+      for (let s = 0; s < steps; s++) {
+        const cpX = startX + (Math.random() - 0.5) * rx * 0.4;
+        const cpY = startY + (Math.random() - 0.5) * ry * 0.5;
+        const endX = startX + (Math.cos(angle + (Math.random() - 0.5) * 0.5)) * (dist + rx * 0.6);
+        const endY = startY + (Math.sin(angle + (Math.random() - 0.5) * 0.5)) * (dist + ry * 0.6);
+        ctx.quadraticCurveTo(cpX, cpY, endX, endY);
+      }
+      ctx.stroke();
+    }
   }
   ctx.restore();
 
@@ -2074,51 +2925,165 @@ function drawEye(instance, camera) {
   const pupilR = w * 0.095;
 
   const irisGrad = ctx.createRadialGradient(ex, ey, irisR * 0.1, ex, ey, irisR);
-  irisGrad.addColorStop(0, '#111111');
-  irisGrad.addColorStop(0.5, '#333333');
-  irisGrad.addColorStop(0.85, '#222222');
-  irisGrad.addColorStop(1, '#0a0a0a');
+  if (isViolet) {
+    irisGrad.addColorStop(0, '#2a0050');
+    irisGrad.addColorStop(0.5, '#5522aa');
+    irisGrad.addColorStop(0.85, '#3a1070');
+    irisGrad.addColorStop(1, '#1a0030');
+  } else {
+    irisGrad.addColorStop(0.05, '#3a3020');
+    irisGrad.addColorStop(0.3, '#4a3d28');
+    irisGrad.addColorStop(0.6, '#3d3220');
+    irisGrad.addColorStop(0.85, '#2a2215');
+    irisGrad.addColorStop(1, '#1a150e');
+  }
   ctx.fillStyle = irisGrad;
   ctx.beginPath();
   ctx.arc(ex, ey, irisR, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.strokeStyle = 'rgba(255,255,255,0.4)';
-  ctx.lineWidth = 2.0;
-  ctx.beginPath();
-  ctx.arc(ex, ey, irisR, 0, Math.PI * 2);
-  ctx.stroke();
+  if (!isViolet) {
+    for (let i = 0; i < 80; i++) {
+      const angle = (i / 80) * Math.PI * 2 + Math.sin(fc * 0.008 + i * 0.3) * 0.08;
+      const r1 = irisR * 0.15;
+      const r2 = irisR * (0.3 + Math.random() * 0.55);
+      ctx.strokeStyle = `rgba(80,55,30,${0.1 + Math.random() * 0.2})`;
+      ctx.lineWidth = 0.3 + Math.random() * 0.6;
+      ctx.beginPath();
+      ctx.moveTo(ex + Math.cos(angle) * r1, ey + Math.sin(angle) * r1);
+      ctx.lineTo(ex + Math.cos(angle) * r2, ey + Math.sin(angle) * r2);
+      ctx.stroke();
+    }
 
-  ctx.strokeStyle = 'rgba(0,0,0,0.5)';
-  ctx.lineWidth = 1.0;
-  ctx.beginPath();
-  ctx.arc(ex, ey, irisR - 2, 0, Math.PI * 2);
-  ctx.stroke();
+    const collGrad = ctx.createRadialGradient(ex, ey, irisR * 0.3, ex, ey, irisR * 0.55);
+    collGrad.addColorStop(0, 'rgba(80,60,35,0)');
+    collGrad.addColorStop(0.5, 'rgba(100,75,45,0.2)');
+    collGrad.addColorStop(0.8, 'rgba(80,60,35,0.15)');
+    collGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = collGrad;
+    ctx.beginPath();
+    ctx.arc(ex, ey, irisR * 0.55, 0, Math.PI * 2);
+    ctx.fill();
 
-  const pupilShrink = 0.65 + Math.sin(fc * 0.012) * 0.45;
-  const effectivePupilR = pupilR * pupilShrink;
+    for (let c = 0; c < 12; c++) {
+      const ca = Math.random() * Math.PI * 2;
+      const cd = irisR * (0.45 + Math.random() * 0.35);
+      const cs = 2 + Math.random() * 4;
+      const ch = 1 + Math.random() * 3;
+      ctx.fillStyle = `rgba(20,15,10,0.25)`;
+      ctx.beginPath();
+      ctx.ellipse(ex + Math.cos(ca) * cd, ey + Math.sin(ca) * cd, cs, ch, ca, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  if (!isViolet) {
+    ctx.strokeStyle = 'rgba(60,50,40,0.6)';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(ex, ey, irisR + 1, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(40,35,30,0.8)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(ex, ey, irisR + 3, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(90,75,60,0.3)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(ex, ey, irisR - 1, 0, Math.PI * 2);
+    ctx.stroke();
+  } else {
+    ctx.strokeStyle = isViolet ? 'rgba(200,100,255,0.4)' : 'rgba(255,255,255,0.4)';
+    ctx.lineWidth = 2.0;
+    ctx.beginPath();
+    ctx.arc(ex, ey, irisR, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+    ctx.lineWidth = 1.0;
+    ctx.beginPath();
+    ctx.arc(ex, ey, irisR - 2, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  const pupilShrink = 0.65 + Math.sin(fc * 0.012) * 0.45 + (instance.stareTimer > 0 ? 0.25 : 0);
+  const effectivePupilR = pupilR * Math.min(1.1, pupilShrink) * (isViolet ? 1 : ep.pupilScale);
   ctx.fillStyle = '#000000';
   ctx.beginPath();
-  ctx.arc(spx, spy, effectivePupilR, 0, Math.PI * 2);
+  if (!isViolet) {
+    ctx.moveTo(spx + effectivePupilR, spy);
+    for (let a = 0; a <= 40; a++) {
+      const angle = (a / 40) * Math.PI * 2;
+      const ir = effectivePupilR + Math.sin(angle * 8 + fc * 0.02) * 0.5 + Math.sin(angle * 13 + fc * 0.03) * 0.3;
+      ctx.lineTo(spx + Math.cos(angle) * ir, spy + Math.sin(angle) * ir);
+    }
+    ctx.closePath();
+  } else {
+    ctx.arc(spx, spy, effectivePupilR, 0, Math.PI * 2);
+  }
   ctx.fill();
 
-  ctx.fillStyle = 'rgba(255,255,255,0.55)';
-  ctx.beginPath();
-  ctx.arc(spx - w * 0.025, spy - w * 0.025, w * 0.038, 0, Math.PI * 2);
-  ctx.fill();
+  if (!isViolet) {
+    const ambGrad = ctx.createRadialGradient(spx - w * 0.02, spy - w * 0.03, 0, spx - w * 0.02, spy - w * 0.03, w * 0.06);
+    ambGrad.addColorStop(0, 'rgba(180,200,230,0.35)');
+    ambGrad.addColorStop(0.4, 'rgba(140,170,210,0.15)');
+    ambGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = ambGrad;
+    ctx.beginPath();
+    ctx.arc(spx - w * 0.02, spy - w * 0.03, w * 0.06, 0, Math.PI * 2);
+    ctx.fill();
 
-  const hl2Grad = ctx.createRadialGradient(spx - w * 0.025, spy - w * 0.025, 0, spx - w * 0.025, spy - w * 0.025, w * 0.038);
-  hl2Grad.addColorStop(0, 'rgba(255,255,255,0.35)');
-  hl2Grad.addColorStop(1, 'rgba(180,200,240,0.0)');
-  ctx.fillStyle = hl2Grad;
-  ctx.beginPath();
-  ctx.arc(spx - w * 0.025, spy - w * 0.025, w * 0.08, 0, Math.PI * 2);
-  ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.beginPath();
+    ctx.arc(spx - w * 0.025, spy - w * 0.025, w * 0.035, 0, Math.PI * 2);
+    ctx.fill();
 
-  ctx.fillStyle = 'rgba(255,255,255,0.30)';
-  ctx.beginPath();
-  ctx.arc(spx + w * 0.045, spy + w * 0.06, w * 0.012, 0, Math.PI * 2);
-  ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.beginPath();
+    ctx.arc(spx + w * 0.04, spy + w * 0.05, w * 0.015, 0, Math.PI * 2);
+    ctx.fill();
+
+    const wetGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, rx);
+    wetGrad.addColorStop(0, 'rgba(200,220,255,0.1)');
+    wetGrad.addColorStop(0.5, 'rgba(180,200,240,0.06)');
+    wetGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = wetGrad;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fill();
+  } else {
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.beginPath();
+    ctx.arc(spx - w * 0.025, spy - w * 0.025, w * 0.038, 0, Math.PI * 2);
+    ctx.fill();
+
+    const hl2Grad = ctx.createRadialGradient(spx - w * 0.025, spy - w * 0.025, 0, spx - w * 0.025, spy - w * 0.025, w * 0.038);
+    hl2Grad.addColorStop(0, 'rgba(255,255,255,0.35)');
+    hl2Grad.addColorStop(1, 'rgba(180,200,240,0.0)');
+    ctx.fillStyle = hl2Grad;
+    ctx.beginPath();
+    ctx.arc(spx - w * 0.025, spy - w * 0.025, w * 0.08, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = 'rgba(255,255,255,0.30)';
+    ctx.beginPath();
+    ctx.arc(spx + w * 0.045, spy + w * 0.06, w * 0.012, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  if (!isViolet) {
+    const bagGrad = ctx.createRadialGradient(ex, ey + ry * 0.6, 0, ex, ey + ry * 0.6, rx * 0.7);
+    bagGrad.addColorStop(0, 'rgba(50,15,30,0.3)');
+    bagGrad.addColorStop(0.5, 'rgba(40,10,25,0.15)');
+    bagGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = bagGrad;
+    ctx.beginPath();
+    ctx.ellipse(ex, ey + ry * 0.5, rx * 0.6, ry * 0.35, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
 
   ctx.save();
   ctx.beginPath();
@@ -2132,6 +3097,30 @@ function drawEye(instance, camera) {
   ctx.fillStyle = lidGrad;
   ctx.fillRect(cx - rx - 4, cy - ry, rx * 2 + 8, ry * 0.7);
 
+  if (!isViolet) {
+    ctx.strokeStyle = 'rgba(160,80,80,0.35)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, rx - 0.5, Math.PI * 1.15, Math.PI * 1.85);
+    ctx.stroke();
+
+    for (let l = 0; l < 14; l++) {
+      const la = Math.PI * 1.15 + (l / 14) * Math.PI * 0.7;
+      const ll = 5 + Math.random() * 10;
+      ctx.strokeStyle = 'rgba(180,170,160,0.3)';
+      ctx.lineWidth = 0.6 + Math.random() * 0.8;
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(la) * (rx + 1), cy + Math.sin(la) * (ry + 1));
+      ctx.quadraticCurveTo(
+        cx + Math.cos(la - 0.1) * (rx + 1 + ll),
+        cy + Math.sin(la - 0.1) * (ry + 1 + ll * 0.3),
+        cx + Math.cos(la - 0.15) * (rx + 1 + ll * 1.2),
+        cy + Math.sin(la - 0.15) * (ry + 1 + ll * 0.3)
+      );
+      ctx.stroke();
+    }
+  }
+
   const lowerLidGrad = ctx.createLinearGradient(0, cy + ry * 0.7, 0, cy + ry);
   lowerLidGrad.addColorStop(0, 'rgba(0,0,0,0)');
   lowerLidGrad.addColorStop(0.5, 'rgba(0,0,0,0.15)');
@@ -2139,6 +3128,26 @@ function drawEye(instance, camera) {
   ctx.fillStyle = lowerLidGrad;
   ctx.fillRect(cx - rx - 4, cy + ry * 0.7, rx * 2 + 8, ry * 0.3);
   ctx.restore();
+
+  if (!isViolet) {
+    const browY = cy - ry - 10 + ep.browRaise * 18;
+    const browH = ry * 0.15 + ep.browRaise * 5;
+    const browW = rx * 0.55;
+    ctx.strokeStyle = `rgba(80,70,65,${0.4 + Math.abs(ep.browRaise) * 0.4})`;
+    ctx.lineWidth = 2.5 + Math.abs(ep.browRaise) * 2;
+    ctx.beginPath();
+    const bDir = ep.browRaise > 0 ? 1 : -1;
+    ctx.moveTo(cx - browW, browY + browH * bDir);
+    ctx.quadraticCurveTo(cx, browY - browH * 0.3 * bDir, cx + browW, browY + browH * bDir);
+    ctx.stroke();
+
+    ctx.strokeStyle = `rgba(60,50,45,${0.3 + Math.abs(ep.browRaise) * 0.3})`;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(cx - browW * 0.8, browY + browH * bDir + 2);
+    ctx.quadraticCurveTo(cx, browY - browH * 0.2 * bDir + 2, cx + browW * 0.8, browY + browH * bDir + 2);
+    ctx.stroke();
+  }
 
   ctx.strokeStyle = 'rgba(255,255,255,0.5)';
   ctx.lineWidth = 3.0;
@@ -2187,7 +3196,7 @@ function drawEye(instance, camera) {
   ctx.fillStyle = vGrad;
   ctx.fillRect(0, 0, w, h);
 
-  ctx.fillStyle = 'rgba(0,15,0,0.05)';
+  ctx.fillStyle = isViolet ? 'rgba(20,0,40,0.08)' : 'rgba(0,15,0,0.05)';
   ctx.fillRect(0, 0, w, h);
 
   ctx.fillStyle = 'rgba(0,0,0,0.20)';
@@ -2195,13 +3204,24 @@ function drawEye(instance, camera) {
   ctx.ellipse(cx, cy, rx + 4, ry + 4, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  const blinkPhase = fc % 210;
-  if (blinkPhase < 14) {
-    const bp = blinkPhase / 14;
+  if (!isViolet && instance.blinkTimer > 0) {
+    instance.blinkTimer -= 1 / ep.blinkSpeed;
+  } else if (isViolet) {
+    instance.blinkTimer--;
+  }
+  if (instance.blinkTimer <= 0) {
+    instance.blinkPhase = 1;
+    instance.blinkTimer = (120 + Math.floor(Math.random() * 120)) / (isViolet ? 1 : ep.blinkSpeed);
+  }
+  if (instance.blinkPhase > 0 && instance.blinkPhase < 14) {
+    const bp = instance.blinkPhase / 14;
+    instance.blinkPhase++;
     const lidH = bp < 0.5 ? bp * 2 * ry * 2.2 : (1 - bp) * 2 * ry * 2.2;
     ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, w, lidH);
     ctx.fillRect(0, h - lidH * 0.6, w, lidH * 0.6);
+  } else if (instance.blinkPhase >= 14) {
+    instance.blinkPhase = 0;
   }
 
   if (instance.tex) instance.tex.needsUpdate = true;
