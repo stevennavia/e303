@@ -78,6 +78,31 @@ html, body {
   text-shadow: 0 0 12px rgba(255, 68, 68, 0.6);
 }
 
+#inventory {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.inv-item {
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  color: #8899aa;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(100, 130, 170, 0.15);
+  padding: 6px 12px;
+  border-radius: 3px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.inv-item.visible {
+  opacity: 1;
+}
+
 @keyframes timer-shake {
   0%, 100% { transform: translateX(0); }
   15% { transform: translateX(-6px) rotate(-2deg); }
@@ -176,9 +201,18 @@ html, body {
   cursor: pointer;
 }
 
+#start-overlay {
+  background-image: url('/portada.png');
+  background-size: cover;
+  background-position: center;
+}
+
 #end-overlay {
   display: none;
   background: #000;
+  background-image: url('/gameover.png');
+  background-size: cover;
+  background-position: center;
   cursor: default;
   pointer-events: all;
 }
@@ -371,4 +405,148 @@ html, body {
   background: #252530;
   color: #ffffff;
   border-color: #445566;
+}
+
+#clue-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(3px);
+  pointer-events: all;
+}
+
+#clue-overlay.active {
+  display: flex;
+}
+
+.clue-note {
+  background: #f5f0e0;
+  border: 1px solid #d0c8b0;
+  border-radius: 4px;
+  padding: 24px 28px;
+  max-width: 400px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5), inset 0 0 40px rgba(200, 180, 150, 0.3);
+  transform: rotate(-1deg);
+  position: relative;
+}
+
+.clue-note::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: 5%;
+  width: 90%;
+  height: 100%;
+  border-top: 2px dashed rgba(180, 160, 130, 0.4);
+  pointer-events: none;
+}
+
+.clue-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.clue-color-bar {
+  width: 60px;
+  height: 4px;
+  border-radius: 2px;
+}
+
+.clue-color-bar.blue { background: #4488ff; box-shadow: 0 0 6px #4488ff; }
+.clue-color-bar.green { background: #44cc44; box-shadow: 0 0 6px #44cc44; }
+.clue-color-bar.violet { background: #8844cc; box-shadow: 0 0 6px #8844cc; }
+.clue-color-bar.red { background: #cc4444; box-shadow: 0 0 6px #cc4444; }
+
+.clue-close {
+  background: none;
+  border: none;
+  color: #887766;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+  transition: color 0.15s;
+}
+
+.clue-close:hover {
+  color: #332211;
+}
+
+.clue-text {
+  font-family: 'Courier New', monospace;
+  font-size: 17px;
+  line-height: 1.8;
+  color: #2a2020;
+  text-align: center;
+  font-style: italic;
+  margin: 0;
+}
+
+#victory-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  pointer-events: all;
+}
+
+#victory-overlay.active {
+  display: flex;
+}
+
+#victory-overlay.active h1 {
+  animation: victoryFadeIn 3s ease forwards;
+}
+
+@keyframes victoryFadeIn {
+  0% { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.victory-content h1 {
+  font-family: 'Courier New', monospace;
+  font-size: 28px;
+  color: #ddeeff;
+  text-align: center;
+  letter-spacing: 2px;
+  max-width: 500px;
+  line-height: 1.6;
+  text-shadow: 0 0 30px rgba(100, 150, 220, 0.5);
+}
+
+.dev-btn {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  padding: 6px 14px;
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.3);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.dev-btn:hover {
+  background: rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.6);
+}
+
+.victory-content h1 {
+  font-family: 'Courier New', monospace;
+  font-size: 28px;
+  color: #000000;
+  text-align: center;
+  letter-spacing: 2px;
+  max-width: 500px;
+  line-height: 1.6;
 }

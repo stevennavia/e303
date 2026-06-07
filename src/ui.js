@@ -147,3 +147,53 @@ export function initComboUI() {
     });
   });
 }
+
+const clueOverlay = document.getElementById('clue-overlay');
+const clueText = document.getElementById('clue-text');
+const clueColorBar = document.getElementById('clue-color-bar') || clueOverlay.querySelector('.clue-color-bar');
+const clueClose = document.getElementById('clue-close');
+
+export function showClueUI(text, color) {
+  clueText.textContent = text;
+  if (clueColorBar) {
+    clueColorBar.className = 'clue-color-bar ' + color;
+  }
+  releaseLock();
+  clueOverlay.classList.add('active');
+}
+
+export function hideClueUI() {
+  clueOverlay.classList.remove('active');
+  requestLock();
+}
+
+export function initClueUI() {
+  clueClose.addEventListener('click', (e) => {
+    e.stopPropagation();
+    hideClueUI();
+  });
+  clueOverlay.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (e.target === clueOverlay) hideClueUI();
+  });
+}
+
+const inventoryEl = document.getElementById('inventory');
+let _invItems = {};
+
+export function updateInventory(gameState) {
+  const items = [];
+  if (gameState.flashlightCollected) items.push({ id: 'flashlight', label: 'Linterna', icon: '\uD83D\uDD26' });
+  if (gameState.remoteCollected) items.push({ id: 'remote', label: 'Control remoto', icon: '\uD83D\uDCF1' });
+
+  if (items.length === 0) {
+    inventoryEl.innerHTML = '';
+    return;
+  }
+
+  let html = '';
+  items.forEach(item => {
+    html += `<div class="inv-item visible" id="inv-${item.id}">${item.icon} ${item.label}</div>`;
+  });
+  inventoryEl.innerHTML = html;
+}

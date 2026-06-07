@@ -5,11 +5,14 @@ import { playAccessGranted, playDoorUnlock1, playDoorUnlock2 } from './audio.js'
 
 const interactableMeshes = [];
 const interactableData = new Map();
+let _switchGroup = null;
+let _comboGroup = null;
+let _puertaProxy = null;
+let _puerta = null;
 
 export function createInteractables(scene) {
   const greenMat = new THREE.MeshStandardMaterial({ color: 0x2d5a27, roughness: 0.7 });
   const grayMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.5 });
-  const brownMat = new THREE.MeshStandardMaterial({ color: 0x6b4226, roughness: 0.8 });
 
   const pizarra = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.7, 0.15), greenMat);
   pizarra.position.set(0, 1.5, -5.6);
@@ -17,11 +20,19 @@ export function createInteractables(scene) {
   const monitor = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.55, 0.8), grayMat);
   monitor.position.set(-5.6, 1.2, -1.5);
 
-  const puerta = new THREE.Mesh(new THREE.BoxGeometry(1.2, 2.4, 0.15), brownMat);
-  puerta.position.set(0, 1.2, 6.0);
-  puerta.material.transparent = true;
-  puerta.material.opacity = 0.3;
-  puerta.material.depthWrite = false;
+  const puertaMat = new THREE.MeshBasicMaterial({ color: 0x6b4226, transparent: true, opacity: 0.1 });
+  const puerta = new THREE.Mesh(new THREE.BoxGeometry(0.88, 2.1, 0.2), puertaMat);
+  puerta.position.set(0, 1.05, 7.0);
+  scene.add(puerta);
+  _puerta = puerta;
+
+  const puertaProxy = new THREE.Mesh(
+    new THREE.BoxGeometry(1.0, 2.3, 0.3),
+    new THREE.MeshBasicMaterial({ visible: false })
+  );
+  puertaProxy.position.set(0, 1.05, 7.0);
+  scene.add(puertaProxy);
+  _puertaProxy = puertaProxy;
 
   const switchGroup = new THREE.Group();
   const switchBackPlate = new THREE.Mesh(
@@ -54,8 +65,9 @@ export function createInteractables(scene) {
 
   switchGroup.position.set(-1.5, 1.4, 6.9);
   scene.add(switchGroup);
+  _switchGroup = switchGroup;
 
-  interactableMeshes.push(pizarra, monitor, puerta, switchGroup);
+  interactableMeshes.push(pizarra, monitor, puertaProxy, switchGroup);
 
   interactableData.set(pizarra, {
     id: 'pizarra',
@@ -69,16 +81,18 @@ export function createInteractables(scene) {
     message: 'El monitor est\u00e1 apagado.',
   });
 
-  interactableData.set(puerta, {
+  interactableData.set(puertaProxy, {
     id: 'puerta',
     label: 'puerta',
-    message: '',
+    message: 'Puerta cerrada',
     action() {
-      if (gameState.doorUnlocked) {
-        showMessage('La puerta ya est\u00e1 abierta.');
+      if (!gameState.codeValidated) {
+        showMessage('Puerta cerrada');
         return;
       }
-      showMessage('Puerta cerrada, necesito c\u00f3digo');
+      gameState.eyeTrapStage = 1;
+      gameState.eyeTrapTimer = 0;
+      showMessage('');
     },
   });
 
@@ -199,6 +213,7 @@ export function createInteractables(scene) {
   comboGroup.add(comboCable);
 
   scene.add(comboGroup);
+  _comboGroup = comboGroup;
 
   interactableMeshes.push(comboBtn);
   interactableData.set(comboBtn, {
@@ -211,7 +226,22 @@ export function createInteractables(scene) {
               entered.red === correct.red &&
               entered.green === correct.green &&
               entered.blue === correct.blue) {
-            gameState.doorUnlocked = true;
+            gameState.codeValidated = true;
+            showMessage('C\u00f3digo validado \u2014 algo se desbloque\u00f3...');
+
+            const cam = gameState.camera;
+            if (cam) {
+              const dir = new THREE.Vector3(-7.15, 1.6, -6.0).sub(cam.position).normalize();
+              gameState.cameraAnim.active = true;
+              gameState.cameraAnim.progress = 0;
+              gameState.cameraAnim.startPos = cam.position.clone();
+              gameState.cameraAnim.targetPos = cam.position.clone();
+              gameState.cameraAnim.startQuat = cam.quaternion.clone();
+              gameState.cameraAnim.targetQuat = new THREE.Quaternion().setFromUnitVectors(
+                new THREE.Vector3(0, 0, -1), dir
+              );
+            }
+
             playAccessGranted();
             playDoorUnlock1();
             playDoorUnlock2();
@@ -224,4 +254,4 @@ export function createInteractables(scene) {
   return { interactableMeshes, interactableData };
 }
 
-export { interactableMeshes, interactableData };
+export { interactableMeshes, interactableData, _switchGroup as switchGroupRef, _comboGroup as comboGroupRef, _puertaProxy as puertaProxyRef, _puerta as puertaRef };

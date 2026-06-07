@@ -5,7 +5,9 @@ import {
   PASILLO_WIDTH, PASILLO_HEIGHT, SOUTH_EXPAND,
   LIGHTING_PRESETS,
 } from './constants.js';
-import { showMessage, updateTimerDisplay, showTimeNotification } from './ui.js';
+import { showMessage, updateTimerDisplay, showTimeNotification, showClueUI, updateInventory } from './ui.js';
+import { switchGroupRef, comboGroupRef, puertaProxyRef, puertaRef } from './interactables.js';
+import { playSpaceOpen, playItemPickup, playDoorOpen } from './audio.js';
 
 function createNoisyTexture(baseHex, noiseAmount = 18) {
   const size = 256;
@@ -113,20 +115,47 @@ export function initScene(renderer) {
   scene.background = new THREE.Color(COLORS.background);
   mainScene = scene;
 
-  scene.add(createTestRoom());
-  scene.add(createRoomDesks());
-  scene.add(createProfDesk());
+  _testRoom = createTestRoom();
+  _desks = createRoomDesks();
+  _profDesk = createProfDesk();
+  _projector = createProjector();
+  _backWall = createBackWall();
+  _hallway = createHallway();
+  _city = createCity();
+  _forest = createForestView();
+  _whiteboard = createWhiteboard();
+  _ceilingLights = createCeilingLights();
+  _hallwayLights = createHallwayLights();
+  _dust = createDustParticles();
+
+  scene.add(_testRoom);
+  scene.add(_desks);
+  scene.add(_profDesk);
   deskColliders.push({ minX: 5.2, maxX: 6.8, minZ: -6.1, maxZ: -4.9 });
-  scene.add(createProjector());
-  scene.add(createBackWall());
-  scene.add(createHallway());
-  scene.add(createCity());
-  scene.add(createForestView());
-  scene.add(createWhiteboard());
+  scene.add(_projector);
+  scene.add(_backWall);
+  scene.add(_hallway);
+  scene.add(_city);
+  scene.add(_forest);
+  scene.add(_whiteboard);
   deskColliders.push({ minX: -7.0, maxX: -5.2, minZ: -8.5, maxZ: -7.5 });
-  scene.add(createCeilingLights());
-  scene.add(createHallwayLights());
-  scene.add(createDustParticles());
+  spawnVictoryDoor(scene);
+  createDoorEye(scene);
+  scene.add(_ceilingLights);
+  scene.add(_hallwayLights);
+  scene.add(_dust);
+
+  _starfield = createStarfield();
+  scene.add(_starfield);
+
+  _finalFloor = new THREE.Mesh(
+    new THREE.PlaneGeometry(ROOM_WIDTH, ROOM_DEPTH + SOUTH_EXPAND),
+    new THREE.MeshStandardMaterial({ color: 0x3a3a3e, roughness: 0.85 })
+  );
+  _finalFloor.rotation.x = -Math.PI / 2;
+  _finalFloor.position.set(0, 0, -SOUTH_EXPAND / 2);
+  _finalFloor.visible = false;
+  scene.add(_finalFloor);
 
   scene.fog = new THREE.FogExp2(0x0a0a14, 0.038);
 
@@ -959,6 +988,26 @@ function createRoomDesks() {
     violetEyeState.targetScreenIdx = vIdx;
     gameState.violetCode.targetScreenIdx = vIdx;
     roomScreenMeshes[vIdx].userData.violetCodeScreen = true;
+
+    const vMi = vIdx % 4;
+    const conflictSet = new Set([vIdx]);
+    if (vMi > 0) conflictSet.add(vIdx - 1);
+    if (vMi < 3) conflictSet.add(vIdx + 1);
+
+    for (const chair of bluePuzzleChairRefs) {
+      const cIdx = roomScreenMeshes.indexOf(chair.screen);
+      if (conflictSet.has(cIdx)) {
+        roomScreenMeshes[vIdx].userData.violetCodeScreen = false;
+        const retry = violetCandidates.filter(i => !conflictSet.has(i));
+        if (retry.length > 0) {
+          const newIdx = retry[Math.floor(Math.random() * retry.length)];
+          violetEyeState.targetScreenIdx = newIdx;
+          gameState.violetCode.targetScreenIdx = newIdx;
+          roomScreenMeshes[newIdx].userData.violetCodeScreen = true;
+        }
+        break;
+      }
+    }
   }
 
   deskColliders.length = 0;
@@ -1842,6 +1891,188 @@ function createWhiteboard() {
   return group;
 }
 
+function spawnVictoryDoor(scene) {
+  const group = new THREE.Group();
+  const fw = 1.5, fh = 2.5;
+  group.position.set(-7.15, fh / 2 + 0.3, -6.0);
+  group.rotation.y = Math.PI / 2;
+  group.visible = false;
+
+  const violetMat = new THREE.MeshStandardMaterial({ color: 0x9400D3, emissive: 0xaa22ff, emissiveIntensity: 2.5, roughness: 0.3, metalness: 0.3 });
+  const redMat = new THREE.MeshStandardMaterial({ color: 0xFF0000, emissive: 0xff2222, emissiveIntensity: 2.5, roughness: 0.3, metalness: 0.3 });
+  const greenMatBar = new THREE.MeshStandardMaterial({ color: 0x00CC00, emissive: 0x22ff22, emissiveIntensity: 2.5, roughness: 0.3, metalness: 0.3 });
+  const blueMatBar = new THREE.MeshStandardMaterial({ color: 0x0066FF, emissive: 0x2266ff, emissiveIntensity: 2.5, roughness: 0.3, metalness: 0.3 });
+
+  const ft = new THREE.Mesh(new THREE.BoxGeometry(fw, 0.06, 0.06), violetMat);
+  ft.position.set(0, fh / 2, 0);
+  group.add(ft);
+
+  const fb = new THREE.Mesh(new THREE.BoxGeometry(fw, 0.06, 0.06), greenMatBar);
+  fb.position.set(0, -fh / 2, 0);
+  group.add(fb);
+
+  const fl = new THREE.Mesh(new THREE.BoxGeometry(0.06, fh, 0.06), blueMatBar);
+  fl.position.set(-fw / 2, 0, 0);
+  group.add(fl);
+
+  const fr = new THREE.Mesh(new THREE.BoxGeometry(0.06, fh, 0.06), redMat);
+  fr.position.set(fw / 2, 0, 0);
+  group.add(fr);
+
+  const cornerDefs = [
+    { color: 0x9400D3, emissive: 0xaa22ff, x: -fw / 2, y: fh / 2 },
+    { color: 0xFF0000, emissive: 0xff2222, x: fw / 2, y: fh / 2 },
+    { color: 0x00CC00, emissive: 0x22ff22, x: fw / 2, y: -fh / 2 },
+    { color: 0x0066FF, emissive: 0x2266ff, x: -fw / 2, y: -fh / 2 },
+  ];
+
+  cornerDefs.forEach(({ color, emissive, x, y }) => {
+    const sMat = new THREE.MeshStandardMaterial({
+      color, emissive, emissiveIntensity: 4.0,
+    });
+    const sphere = new THREE.Mesh(new THREE.SphereGeometry(0.07, 12, 12), sMat);
+    sphere.position.set(x, y, 0.02);
+    group.add(sphere);
+
+    const light = new THREE.PointLight(color, 2.0, 3.5, 2);
+    light.position.set(x, y, 0.08);
+    group.add(light);
+  });
+
+  const gCanvas = document.createElement('canvas');
+  gCanvas.width = 128;
+  gCanvas.height = 128;
+  const gCtx = gCanvas.getContext('2d');
+  const gCorners = [
+    { x: 10, y: 10, color: 'rgba(148,0,211,0.5)' },
+    { x: 118, y: 10, color: 'rgba(255,0,0,0.5)' },
+    { x: 118, y: 118, color: 'rgba(0,204,0,0.5)' },
+    { x: 10, y: 118, color: 'rgba(0,102,255,0.5)' },
+  ];
+  gCorners.forEach(({ x, y, color }) => {
+    const rad = gCtx.createRadialGradient(x, y, 2, x, y, 70);
+    rad.addColorStop(0, color);
+    rad.addColorStop(0.5, 'rgba(0,0,0,0.15)');
+    rad.addColorStop(1, 'rgba(0,0,0,0)');
+    gCtx.fillStyle = rad;
+    gCtx.fillRect(0, 0, 128, 128);
+  });
+  const gTex = new THREE.CanvasTexture(gCanvas);
+  const portalMat = new THREE.MeshBasicMaterial({
+    map: gTex,
+    transparent: true,
+    opacity: 0.7,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+  const portal = new THREE.Mesh(new THREE.PlaneGeometry(fw - 0.1, fh - 0.1), portalMat);
+  portal.position.z = -0.01;
+  group.add(portal);
+
+  scene.add(group);
+  _victoryDoor = group;
+  return group;
+}
+
+let _victoryDoor = null;
+let _doorEyeInst = null;
+let _doorEyeMesh = null;
+let _blueTex = null;
+let _blueScreenIdx = -1;
+let _violetTex = null;
+let _violetScreenIdx = -1;
+
+let _testRoom, _desks, _profDesk, _backWall, _hallway, _city, _forest, _whiteboard, _ceilingLights, _hallwayLights, _projector, _dust, _starfield, _finalFloor;
+
+function createDoorEye(scene) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.35));
+  mesh.position.set(0, 1.5, 6.93);
+  mesh.rotation.y = Math.PI;
+  mesh.visible = false;
+  const mat = new THREE.MeshStandardMaterial({
+    map: tex, emissiveMap: tex, emissive: 0xff4444, emissiveIntensity: 0.5, depthWrite: false, side: THREE.DoubleSide,
+  });
+  mesh.material = mat;
+  scene.add(mesh);
+
+  const inst = {
+    idx: 0,
+    meshes: [mesh],
+    mats: [mat],
+    canvas, ctx, tex,
+    frameCount: 0,
+    type: 'door',
+    glitchType: 3,
+    glitchTimer: 9999,
+    stareTimer: 60,
+    saccadeTarget: null,
+    blinkTimer: 120 + Math.floor(Math.random() * 120),
+    blinkPhase: 0,
+    seed: Math.random() * 100,
+    emotion: { current: 'anger', target: 'anger', blend: 1, _alarmTimer: 0 },
+  };
+  eyeInstances.push(inst);
+  _doorEyeInst = inst;
+  _doorEyeMesh = mesh;
+}
+
+function createStarfield() {
+  const geo = new THREE.BufferGeometry();
+  const count = 1500;
+  const pos = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    pos[i * 3] = (Math.random() - 0.5) * 60;
+    pos[i * 3 + 1] = (Math.random() - 0.5) * 35;
+    pos[i * 3 + 2] = (Math.random() - 0.5) * 40;
+  }
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const mat = new THREE.PointsMaterial({ color: 0xddeeff, size: 0.06, depthWrite: false });
+  const stars = new THREE.Points(geo, mat);
+  stars.visible = false;
+  return stars;
+}
+
+function startEscapeEndingSequence() {
+  gameState.grandFinale = 1;
+  gameState.finaleTimer = 0;
+  gameState.finaleFreeFlight = false;
+  playDoorOpen();
+  if (gameState.camera) {
+    gameState.finalePullbackStart = gameState.camera.position.clone();
+  }
+  setTimeout(() => { removeRoomShell(); }, 800);
+}
+
+function removeRoomShell() {
+  [_testRoom, _backWall, _hallway, _city, _forest, _hallwayLights, _projector, _dust].forEach(ref => { if (ref) ref.visible = false; });
+  [switchGroupRef, comboGroupRef, puertaProxyRef, puertaRef].forEach(ref => { if (ref) ref.visible = false; });
+  if (_doorEyeMesh) _doorEyeMesh.visible = false;
+  if (_finalFloor) _finalFloor.visible = true;
+  if (_starfield) _starfield.visible = true;
+  if (mainScene) {
+    mainScene.background = new THREE.Color(0x000a1a);
+    mainScene.fog = null;
+    const centerLight = new THREE.PointLight(0x8899cc, 6.0, 18, 1.3);
+    centerLight.position.set(0, 4, 0);
+    mainScene.add(centerLight);
+    const floorLight = new THREE.PointLight(0x5577aa, 2.0, 12, 1.8);
+    floorLight.position.set(0, 0.5, 0);
+    mainScene.add(floorLight);
+  }
+  if (sceneAmbient) {
+    sceneAmbient.intensity = 0.4;
+    sceneAmbient.color.set(0x445566);
+  }
+}
+
 function createCeilingLights() {
   const group = new THREE.Group();
 
@@ -1939,7 +2170,23 @@ export const gameState = {
   timer: null,
   flashlightCollected: false,
   flashlightOn: false,
-  doorUnlocked: false,
+  codeValidated: false,
+  cameraAnim: { active: false, startPos: null, targetPos: null, startQuat: null, targetQuat: null, progress: 0 },
+  eyeTrapStage: 0,
+  eyeTrapTimer: 0,
+  eyeTrapEye: null,
+  whiteFlash: 0,
+  victoryOpening: false,
+  victoryStage: 0,
+  grandFinale: 0,
+  finaleTimer: 0,
+  finaleCamStart: null,
+  finaleCamTarget: new THREE.Vector3(0, 5, 12),
+  finaleFreeFlight: false,
+  finalePullbackStart: null,
+  finalePullbackTarget: new THREE.Vector3(0, 5, 12),
+  finaleFlySpeed: 10,
+  camera: null,
 };
 
 export const bluePuzzleChairRefs = [];
@@ -1952,7 +2199,7 @@ export const violetEyeState = {
   instance: null,
   visible: false,
   timer: 0,
-  duration: 12,
+  duration: 5,
 };
 
 export const questionMonitorState = {
@@ -2039,7 +2286,7 @@ function createHallwayLights() {
   return group;
 }
 
-export { createWallMaterial, createNoisyTexture, hallwayFlickerLights, hallwayDeadLights, hallwayScreenMats, ceilingFlickerLights, roomScreenMats, roomScreenMeshes, hallwayScreenMeshes, eyeInstances, profBlinkLight, profScreenRef, profScreenMatRef, telonRef, projButtonRef, beamRef };
+export { createWallMaterial, createNoisyTexture, hallwayFlickerLights, hallwayDeadLights, hallwayScreenMats, ceilingFlickerLights, roomScreenMats, roomScreenMeshes, hallwayScreenMeshes, eyeInstances, profBlinkLight, profScreenRef, profScreenMatRef, telonRef, projButtonRef, beamRef, _victoryDoor as victoryDoorRef, _doorEyeMesh as doorEyeMeshRef, _testRoom as testRoomRef, _backWall as backWallRef, _hallway as hallwayRef, _city as cityRef, _forest as forestRef, _ceilingLights as ceilingLightsRef, _hallwayLights as hallwayLightsRef, _projector as projectorRef, _dust as dustRef, _starfield as starfieldRef, _blueTex as blueTexRef, _blueScreenIdx as blueScreenIdxRef, _violetTex as violetTexRef, _violetScreenIdx as violetScreenIdxRef };
 
 export function setLightingPreset(preset) {
   const p = LIGHTING_PRESETS[preset];
@@ -2104,43 +2351,50 @@ function drawProjectorIcon() {
   ctx.fillStyle = '#000000';
   ctx.fillRect(0, 0, 128, 96);
 
-  ctx.save();
-  ctx.translate(64, 48);
-  ctx.scale(-1, 1);
-  ctx.translate(-64, -48);
-
-  const cx = 64, cy = 48;
-
-  if (gameState.projectorOn) {
-    ctx.strokeStyle = '#44cc44';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(cx, cy, 18, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(cx, cy - 14);
-    ctx.lineTo(cx, cy + 6);
-    ctx.stroke();
+  if (!gameState.powerConnected) {
+    ctx.fillStyle = '#222222';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('SIN SE\u00d1AL', 64, 48);
   } else {
-    ctx.fillStyle = '#cc0000';
-    ctx.beginPath();
-    ctx.arc(cx, cy, 18, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#000000';
-    ctx.beginPath();
-    ctx.arc(cx, cy, 13, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#cc0000';
-    ctx.fillRect(cx - 3, cy - 18, 6, 18);
+    ctx.save();
+    ctx.translate(64, 48);
+    ctx.scale(-1, 1);
+    ctx.translate(-64, -48);
+
+    const cx = 64, cy = 48;
+
+    if (gameState.projectorOn) {
+      ctx.strokeStyle = '#44cc44';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 18, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - 14);
+      ctx.lineTo(cx, cy + 6);
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = '#cc0000';
+      ctx.beginPath();
+      ctx.arc(cx, cy, 18, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#000000';
+      ctx.beginPath();
+      ctx.arc(cx, cy, 13, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#cc0000';
+      ctx.fillRect(cx - 3, cy - 18, 6, 18);
+    }
+
+    ctx.fillStyle = '#aaaaaa';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(gameState.projectorOn ? 'PROYECTOR ACTIVO' : 'PROYECTOR APAGADO', 64, 78);
+
+    ctx.restore();
   }
-
-  ctx.fillStyle = '#aaaaaa';
-  ctx.font = '9px monospace';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'top';
-  ctx.fillText(gameState.projectorOn ? 'PROYECTOR ACTIVO' : 'PROYECTOR APAGADO', 64, 78);
-
-  ctx.restore();
 
   _projIconTex.needsUpdate = true;
   profScreenRef.material.color.set(0xffffff);
@@ -2189,6 +2443,8 @@ export function createExtraInteractables(scene) {
     action() {
       if (gameState.remoteCollected) return;
       gameState.remoteCollected = true;
+      updateInventory(gameState);
+      playItemPickup();
       remote.visible = false;
       remoteLed.visible = false;
       this.message = 'Control remoto recogido.';
@@ -2266,10 +2522,66 @@ export function createExtraInteractables(scene) {
     action() {
       if (gameState.flashlightCollected) return;
       gameState.flashlightCollected = true;
+      updateInventory(gameState);
+      playItemPickup();
       flashGroup.visible = false;
       gameState.flashlightOn = true;
       this.message = 'Linterna recogida. Presiona F para encender/apagar.';
     },
+  });
+
+  const CLUES = {
+    blue: 'La clase termina,\npero las sillas permanecen,\nsosteniendo el peso\nde las ideas que no se dijeron.',
+    green: 'una buena idea parte\npor mirar al miedo\nde frente',
+    violet: 'Donde todos ven un problema,\nuna mirada distinta\nencuentra la solucion.',
+    red: 'Donde otros ven\nuna pizarra vacia,\nla luz correcta\nencuentra una leccion.',
+  };
+
+  const paperPositions = [
+    { color: 'blue', x: -4.5, z: 0.5 },
+    { color: 'green', x: 0, z: -5.5 },
+    { color: 'violet', x: 3.5, z: -2.5 },
+    { color: 'red', x: -5.5, z: -7.5 },
+  ];
+
+  const paperColors = {
+    blue: { emissive: 0x2244ff, hex: '#4488ff' },
+    green: { emissive: 0x22aa44, hex: '#44cc44' },
+    violet: { emissive: 0x5522aa, hex: '#8844cc' },
+    red: { emissive: 0xaa2222, hex: '#cc4444' },
+  };
+
+  paperPositions.forEach(({ color, x, z }) => {
+    const pc = paperColors[color];
+    const paperMat = new THREE.MeshStandardMaterial({
+      color: 0xe8e0c8,
+      emissive: pc.emissive,
+      emissiveIntensity: 0.08,
+      roughness: 0.9,
+      side: THREE.DoubleSide,
+    });
+    const paper = new THREE.Mesh(new THREE.PlaneGeometry(0.18, 0.24), paperMat);
+    paper.rotation.x = -Math.PI / 2;
+    paper.rotation.z = (Math.random() - 0.5) * 0.3;
+    paper.position.set(x, 0.005, z);
+    scene.add(paper);
+
+    const proxy = new THREE.Mesh(
+      new THREE.BoxGeometry(0.25, 0.15, 0.3),
+      new THREE.MeshBasicMaterial({ visible: false })
+    );
+    proxy.position.set(x, 0.06, z);
+    scene.add(proxy);
+    meshes.push(proxy);
+
+    data.set(proxy, {
+      id: `clue_${color}`,
+      label: 'papel',
+      message: 'Presiona E para leer',
+      action() {
+        showClueUI(CLUES[color], color);
+      },
+    });
   });
 
   bluePuzzleChairRefs.forEach((chair, i) => {
@@ -2321,6 +2633,8 @@ export function createExtraInteractables(scene) {
           chair.screen.material.emissiveIntensity = 2.0;
           chair.screen.material.needsUpdate = true;
           chair.screen.userData.blueCodeScreen = true;
+          _blueTex = tex;
+          _blueScreenIdx = roomScreenMeshes.indexOf(chair.screen);
 
           showMessage(`Codigo azul revelado: ${gameState.blueCode.digit}`);
         }
@@ -2370,11 +2684,35 @@ export function createExtraInteractables(scene) {
         vScreen.material.emissive.set(0xffffff);
         vScreen.material.emissiveIntensity = 2.0;
         vScreen.material.needsUpdate = true;
+        _violetTex = tex;
+        _violetScreenIdx = violetEyeState.targetScreenIdx;
 
         showMessage(`Codigo violeta revelado: ${gameState.violetCode.digit}`);
       },
     });
   }
+
+  const sdProxy = new THREE.Mesh(
+    new THREE.BoxGeometry(1.8, 2.8, 0.4),
+    new THREE.MeshBasicMaterial({ visible: false })
+  );
+  sdProxy.position.set(-7.15, 1.6, -6.0);
+  sdProxy.rotation.y = Math.PI / 2;
+  scene.add(sdProxy);
+  meshes.push(sdProxy);
+
+  data.set(sdProxy, {
+    id: 'secretDoor',
+    label: 'puerta especial',
+    message: '',
+    action() {
+      if (!gameState.codeValidated) {
+        showMessage('Necesitas validar el c\u00f3digo');
+        return;
+      }
+      startEscapeEndingSequence();
+    },
+  });
 
   return { meshes, data };
 }

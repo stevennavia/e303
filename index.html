@@ -13,6 +13,7 @@
   <div id="ui-layer">
     <div id="timer">10:00</div>
     <div id="time-notification"></div>
+    <div id="inventory"></div>
     <div id="crosshair"></div>
     <div id="interaction-prompt">Presiona E para interactuar</div>
     <div id="game-message"></div>
@@ -22,6 +23,7 @@
     <div class="overlay-content">
       <h1>E303</h1>
       <p>Haz clic para jugar</p>
+      <button class="dev-btn" id="dev-btn">DEV</button>
     </div>
   </div>
 
@@ -46,7 +48,6 @@
             <div class="combo-digit" id="combo-violet">0</div>
             <button class="combo-down">&#9660;</button>
           </div>
-          <div class="combo-label">V</div>
         </div>
         <div class="combo-cell" data-key="red">
           <div class="combo-color-bar red"></div>
@@ -55,7 +56,6 @@
             <div class="combo-digit" id="combo-red">0</div>
             <button class="combo-down">&#9660;</button>
           </div>
-          <div class="combo-label">R</div>
         </div>
         <div class="combo-cell" data-key="green">
           <div class="combo-color-bar green"></div>
@@ -64,7 +64,6 @@
             <div class="combo-digit" id="combo-green">0</div>
             <button class="combo-down">&#9660;</button>
           </div>
-          <div class="combo-label">G</div>
         </div>
         <div class="combo-cell" data-key="blue">
           <div class="combo-color-bar blue"></div>
@@ -73,10 +72,25 @@
             <div class="combo-digit" id="combo-blue">0</div>
             <button class="combo-down">&#9660;</button>
           </div>
-          <div class="combo-label">B</div>
         </div>
       </div>
       <button class="combo-submit" id="combo-submit">VERIFICAR</button>
+    </div>
+  </div>
+
+  <div id="clue-overlay">
+    <div class="clue-note">
+      <div class="clue-header">
+        <span class="clue-color-bar"></span>
+        <button class="clue-close" id="clue-close">&times;</button>
+      </div>
+      <p class="clue-text" id="clue-text"></p>
+    </div>
+  </div>
+
+  <div id="victory-overlay">
+    <div class="victory-content">
+      <h1>Felicitaciones, escapaste la E303</h1>
     </div>
   </div>
 

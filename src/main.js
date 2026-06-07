@@ -6,15 +6,16 @@ import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { Timer } from './timer.js';
 import { TIMER_START_SECONDS, PLAYER_SPEED, PLAYER_RADIUS } from './constants.js';
-import { initScene, hallwayFlickerLights, hallwayScreenMats, hallwayScreenMeshes, ceilingFlickerLights, roomScreenMats, roomScreenMeshes, getCurrentPreset, setLightingPreset, spawnEye, clearEye, updateAllEyes, eyeInstances, profBlinkLight, gameState, telonRef, createExtraInteractables, beamRef, bluePuzzleChairRefs, violetEyeState, spawnVioletEye, clearVioletEye, questionMonitorSpawn, questionMonitorClear, questionMonitorState, updateQuestionGlitch, deskColliders, setWhiteboardGlow } from './scene.js';
+import { initScene, hallwayFlickerLights, hallwayScreenMats, hallwayScreenMeshes, ceilingFlickerLights, roomScreenMats, roomScreenMeshes, getCurrentPreset, setLightingPreset, spawnEye, clearEye, updateAllEyes, eyeInstances, profBlinkLight, gameState, telonRef, createExtraInteractables, beamRef, bluePuzzleChairRefs, violetEyeState, spawnVioletEye, clearVioletEye, questionMonitorSpawn, questionMonitorClear, questionMonitorState, updateQuestionGlitch, deskColliders, setWhiteboardGlow, victoryDoorRef, doorEyeMeshRef, starfieldRef, blueTexRef, blueScreenIdxRef, violetTexRef, violetScreenIdxRef } from './scene.js';
 import { setupPlayer, clampPlayer } from './player.js';
 import { setupControls, input, requestLock, isLocked } from './controls.js';
 import { createInteractables } from './interactables.js';
 import { checkInteraction, interact } from './interaction.js';
-import { setAudioCtx } from './audio.js';
+import { setAudioCtx, playMonitorGlitch, playEyeBuzz, playGameOver } from './audio.js';
 import {
   showStartOverlay, hideStartOverlay, showEndOverlay,
   updateTimerDisplay, initComboUI, showMessage,
+  showClueUI, hideClueUI, initClueUI,
 } from './ui.js';
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -27,16 +28,35 @@ renderer.toneMappingExposure = 1.2;
 
 document.getElementById('game-container').appendChild(renderer.domElement);
 
+let gameOver = false;
+
 showStartOverlay();
 
 document.getElementById('start-overlay').addEventListener('click', () => {
   requestLock();
 });
 
+document.getElementById('dev-btn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  gameState.codeValidated = true;
+  requestLock();
+});
+
 initComboUI();
+initClueUI();
+
+document.getElementById('victory-overlay').addEventListener('click', () => {
+  location.reload();
+});
+document.addEventListener('keydown', (e) => {
+  if (document.getElementById('victory-overlay').classList.contains('active')) {
+    location.reload();
+  }
+});
 
 const scene = initScene(renderer);
 const camera = setupPlayer();
+gameState.camera = camera;
 const controls = setupControls(camera, document.body, onLockChange);
 const { interactableMeshes: _interactables, interactableData: _data } = createInteractables(scene);
 const { meshes: _extraMeshes, data: _extraData } = createExtraInteractables(scene);
@@ -117,13 +137,13 @@ timer.onTick((remaining) => {
 });
 timer.onEnd(() => {
   gameOver = true;
+  playGameOver();
   showEndOverlay();
 });
 
 const clock = new THREE.Clock();
 
 let gameStarted = false;
-let gameOver = false;
 let _eyeLastSpawnR = -5;
 let _eyeLastSpawnH = 0;
 let _questionTimer = 12;
@@ -133,6 +153,7 @@ let _flashlightMsgShown = false;
 let _wasProjectorBlackout = false;
 
 let _greenCodeAssigned = false;
+let _telonBuzzPlayed = false;
 
 let _telonCtx = null;
 let _telonCanvas = null;
@@ -214,6 +235,7 @@ function updateTelon(t, camera) {
       telonRef.material.needsUpdate = true;
     }
     _greenCodeAssigned = false;
+    _telonBuzzPlayed = false;
     return;
   }
 
@@ -608,15 +630,19 @@ function updateTelon(t, camera) {
     if (!_greenCodeAssigned) {
       gameState.combinationDigits.green = parseInt(_telonPassword, 10);
       _greenCodeAssigned = true;
+      if (!_telonBuzzPlayed) {
+        playEyeBuzz();
+        _telonBuzzPlayed = true;
+      }
     }
 
     if (camera.position.distanceTo(telonWorld) < 3) {
       ctx.fillStyle = '#33ff33';
-      ctx.font = 'bold 28px monospace';
+      ctx.font = 'bold 52px monospace';
       ctx.textAlign = 'center';
       ctx.shadowColor = '#33ff33';
-      ctx.shadowBlur = 8;
-      ctx.fillText(_telonPassword, w / 2, h / 2 + 4);
+      ctx.shadowBlur = 20;
+      ctx.fillText(_telonPassword, w / 2, h / 2 + 6);
       ctx.shadowBlur = 0;
     }
   }
@@ -790,17 +816,39 @@ function animate() {
     }
   }
 
+  if (gameState.blueCode.solved && blueTexRef && blueScreenIdxRef >= 0) {
+    const s = roomScreenMeshes[blueScreenIdxRef];
+    if (s && s.material) {
+      s.material.map = blueTexRef;
+      s.material.emissiveMap = blueTexRef;
+      s.material.emissive.set(0xffffff);
+      s.material.emissiveIntensity = 2.0;
+      s.material.needsUpdate = true;
+    }
+  }
+
+  if (gameState.violetCode.solved && violetTexRef && violetScreenIdxRef >= 0) {
+    const s = roomScreenMeshes[violetScreenIdxRef];
+    if (s && s.material) {
+      s.material.map = violetTexRef;
+      s.material.emissiveMap = violetTexRef;
+      s.material.emissive.set(0xffffff);
+      s.material.emissiveIntensity = 2.0;
+      s.material.needsUpdate = true;
+    }
+  }
+
   violetEyeState.timer += delta;
   if (violetEyeState.visible && violetEyeState.timer >= (violetEyeState.duration || 10)) {
     clearVioletEye();
     violetEyeState.visible = false;
     violetEyeState.timer = 0;
-    violetEyeState.duration = 12 + Math.random() * 6;
+    violetEyeState.duration = 8 + Math.random() * 6;
   } else if (!violetEyeState.visible && violetEyeState.timer >= (violetEyeState.duration || 10)) {
     spawnVioletEye();
     violetEyeState.visible = true;
     violetEyeState.timer = 0;
-    violetEyeState.duration = 8;
+    violetEyeState.duration = 14;
   }
 
   if (!questionMonitorState.active) {
@@ -876,7 +924,112 @@ function animate() {
     }
   });
 
-  if (isLocked() && !gameOver) {
+  if (victoryDoorRef) victoryDoorRef.visible = gameState.codeValidated;
+  if (doorEyeMeshRef) doorEyeMeshRef.visible = gameState.codeValidated;
+
+  const cam = gameState.cameraAnim;
+  if (cam.active) {
+    cam.progress += delta * 0.4;
+    const t = Math.min(1, cam.progress);
+    if (cam.startPos && cam.targetPos && cam.startQuat && cam.targetQuat) {
+      camera.position.lerpVectors(cam.startPos, cam.targetPos, t);
+      camera.quaternion.slerpQuaternions(cam.startQuat, cam.targetQuat, t);
+    }
+    if (t >= 1) {
+      cam.active = false;
+      cam.startPos = null;
+      cam.targetPos = null;
+      cam.startQuat = null;
+      cam.targetQuat = null;
+    }
+  }
+
+  if (gameState.grandFinale === 1) {
+    gameState.finaleTimer += delta;
+    if (gameState.finaleTimer > 0.8) {
+      gameState.grandFinale = 2;
+      gameState.finaleTimer = 0;
+      bloomPass.strength = 0.5;
+    }
+  }
+
+  if (gameState.grandFinale === 2) {
+    gameState.finaleTimer += delta;
+
+    if (!gameState.finaleFreeFlight) {
+      const t = Math.min(1, gameState.finaleTimer / 6.0);
+      const ease = Math.sin(t * Math.PI * 0.5);
+      if (gameState.finalePullbackStart && gameState.finalePullbackTarget) {
+        camera.position.lerpVectors(gameState.finalePullbackStart, gameState.finalePullbackTarget, ease);
+      }
+      camera.lookAt(0, 1.5, 0);
+      if (input.w || input.a || input.s || input.d || t >= 1) {
+        gameState.finaleFreeFlight = true;
+      }
+      bloomPass.strength = 0.5 * (1 - t);
+    } else {
+      const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+      const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+      const speed = gameState.finaleFlySpeed * delta;
+      if (input.w) camera.position.addScaledVector(forward, speed);
+      if (input.s) camera.position.addScaledVector(forward, -speed);
+      if (input.a) camera.position.addScaledVector(right, -speed);
+      if (input.d) camera.position.addScaledVector(right, speed);
+      if (input.fPressed) { camera.position.y += speed; input.fPressed = false; }
+      if (document.getElementById('victory-overlay').classList.contains('active')) {
+        bloomPass.strength = 0.2;
+      }
+    }
+
+    if (input.ePressed) {
+      input.ePressed = false;
+      const rc = new THREE.Raycaster();
+      rc.set(camera.position, new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion));
+      const hits = rc.intersectObjects(roomScreenMeshes, true);
+      if (hits.length > 0 && hits[0].distance < 15) {
+        const colors = ['#081824', '#140818', '#081a14', '#1a1208', '#101030', '#050518', '#180810', '#101828', '#0a1525', '#150a20'];
+        scene.background = new THREE.Color(colors[Math.floor(Math.random() * colors.length)]);
+        playMonitorGlitch();
+      }
+    }
+
+    if (gameState.finaleTimer > 8) {
+      document.getElementById('victory-overlay').classList.add('active');
+      gameState.grandFinale = 0;
+    }
+  }
+
+  if (gameState.eyeTrapStage > 0) {
+    gameState.eyeTrapTimer += delta;
+
+    if (gameState.eyeTrapStage === 1) {
+      if (doorEyeMeshRef && doorEyeMeshRef.material) {
+        doorEyeMeshRef.material.emissiveIntensity = 0.4 + Math.sin(gameState.eyeTrapTimer * 20) * 0.4;
+      }
+      if (gameState.eyeTrapTimer > 2.0) {
+        setLightingPreset('blackout');
+        gameState.eyeTrapStage = 2;
+        gameState.eyeTrapTimer = 0;
+      }
+    }
+
+    if (gameState.eyeTrapStage === 2) {
+      const t = Math.min(1, gameState.eyeTrapTimer / 1.0);
+      camera.fov = 75 * (1 - t);
+      camera.updateProjectionMatrix();
+      if (t >= 1) {
+        camera.fov = 75;
+        camera.updateProjectionMatrix();
+        gameOver = true;
+        playGameOver();
+        showEndOverlay();
+        gameState.eyeTrapStage = 0;
+        gameState.eyeTrapEye = null;
+      }
+    }
+  }
+
+  if (isLocked() && !gameOver && !gameState.cameraAnim.active && gameState.eyeTrapStage === 0) {
     const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
     forward.y = 0;
     forward.normalize();
