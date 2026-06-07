@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { setLightingPreset, getCurrentPreset } from './scene.js';
+import { setLightingPreset, getCurrentPreset, gameState, connectPower } from './scene.js';
+import { showComboUI } from './ui.js';
 
 const interactableMeshes = [];
 const interactableData = new Map();
@@ -23,8 +24,15 @@ export function createInteractables(scene) {
   puerta.material.depthWrite = false;
 
   const switchGroup = new THREE.Group();
+  const switchBackPlate = new THREE.Mesh(
+    new THREE.BoxGeometry(0.24, 0.30, 0.025),
+    new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.5, metalness: 0.3 })
+  );
+  switchGroup.add(switchBackPlate);
+
   const plateMat = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.6, metalness: 0.2 });
   const plate = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.12, 0.04), plateMat);
+  plate.position.set(0, 0.03, -0.03);
   switchGroup.add(plate);
 
   const ledMat = new THREE.MeshStandardMaterial({
@@ -33,10 +41,18 @@ export function createInteractables(scene) {
     emissiveIntensity: 2.0,
   });
   const ledIndicator = new THREE.Mesh(new THREE.SphereGeometry(0.025, 8, 8), ledMat);
-  ledIndicator.position.set(0, 0.04, -0.02);
+  ledIndicator.position.set(0, 0.04, -0.05);
   switchGroup.add(ledIndicator);
 
-  switchGroup.position.set(1.5, 1.4, 6.9);
+  const cableMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.8 });
+  const switchCable = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.012, 0.012, 1.25, 6),
+    cableMat
+  );
+  switchCable.position.set(0, -0.775, -0.01);
+  switchGroup.add(switchCable);
+
+  switchGroup.position.set(-1.5, 1.4, 6.9);
   scene.add(switchGroup);
 
   interactableMeshes.push(pizarra, monitor, puerta, switchGroup);
@@ -79,11 +95,11 @@ export function createInteractables(scene) {
   });
 
   const profMonitor = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.24, 0.06), grayMat);
-  profMonitor.position.set(6.0, 1.08, -6.5);
+  profMonitor.position.set(6.0, 1.08, -6.0);
   profMonitor.visible = false;
 
   const profTower = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.45, 0.32), grayMat);
-  profTower.position.set(5.55, 1.05, -6.0);
+  profTower.position.set(5.55, 1.05, -5.5);
   profTower.visible = false;
 
   scene.add(profMonitor, profTower);
@@ -92,13 +108,100 @@ export function createInteractables(scene) {
   interactableData.set(profMonitor, {
     id: 'profMonitor',
     label: 'monitor del profesor',
-    message: 'El monitor del profesor est\u00e1 bloqueado.',
+    message: 'Equipo sin corriente.',
+    action() {
+      if (!gameState.powerConnected) {
+        this.message = 'Equipo sin corriente.';
+      } else if (!gameState.projectorOn) {
+        this.message = 'Proyector apagado.';
+      } else {
+        this.message = 'Proyector activo \u2014 mir\u00e1 el tel\u00f3n.';
+      }
+    },
   });
 
   interactableData.set(profTower, {
     id: 'profTower',
     label: 'torre del profesor',
-    message: 'La torre del profesor est\u00e1 apagada.',
+    message: 'Equipo sin corriente.',
+    action() {
+      if (!gameState.powerConnected) {
+        this.message = 'Equipo sin corriente.';
+      } else {
+        this.message = 'La torre est\u00e1 funcionando.';
+      }
+    },
+  });
+
+  const outlet = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.06, 0.02), grayMat);
+  outlet.position.set(7.1, 0.04, -6.5);
+  outlet.visible = false;
+
+  scene.add(outlet);
+  interactableMeshes.push(outlet);
+
+  interactableData.set(outlet, {
+    id: 'outlet',
+    label: 'enchufe',
+    message: 'Presiona E para conectar',
+    action() {
+      if (gameState.powerConnected) {
+        this.message = 'El enchufe ya est\u00e1 conectado.';
+        return;
+      }
+      connectPower();
+      this.message = 'Equipo conectado.';
+    },
+  });
+
+  const comboGroup = new THREE.Group();
+  comboGroup.position.set(1.5, 1.4, 6.9);
+
+  const comboBackPlate = new THREE.Mesh(
+    new THREE.BoxGeometry(0.24, 0.30, 0.025),
+    new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.5, metalness: 0.3 })
+  );
+  comboGroup.add(comboBackPlate);
+
+  const comboBtnMat = new THREE.MeshStandardMaterial({
+    color: 0xDDDDDD,
+    emissive: 0x444444,
+    emissiveIntensity: 0.5,
+    roughness: 0.08,
+    metalness: 0.95,
+  });
+  const comboBtn = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.04, 0.04, 0.025, 32),
+    comboBtnMat
+  );
+  comboBtn.rotation.x = Math.PI / 2;
+  comboBtn.position.set(0, 0.03, -0.03);
+  comboGroup.add(comboBtn);
+
+  const comboRing = new THREE.Mesh(
+    new THREE.TorusGeometry(0.045, 0.006, 8, 32),
+    new THREE.MeshStandardMaterial({ color: 0x999999, roughness: 0.2, metalness: 0.8 })
+  );
+  comboRing.position.set(0, 0.03, -0.045);
+  comboGroup.add(comboRing);
+
+  const comboCable = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.012, 0.012, 1.25, 6),
+    cableMat
+  );
+  comboCable.position.set(0, -0.775, -0.01);
+  comboGroup.add(comboCable);
+
+  scene.add(comboGroup);
+
+  interactableMeshes.push(comboBtn);
+  interactableData.set(comboBtn, {
+    id: 'comboButton',
+    label: '',
+    message: '',
+    action() {
+      showComboUI(gameState.combinationDigits);
+    },
   });
 
   return { interactableMeshes, interactableData };

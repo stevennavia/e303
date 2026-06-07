@@ -222,6 +222,7 @@ function createTestRoom() {
   const telon = new THREE.Mesh(telonGeo, telonMat);
   telon.position.set(0, 2.5, -7.5);
   group.add(telon);
+  telonRef = telon;
 
   const roomDepthFull = ROOM_DEPTH + SOUTH_EXPAND;
   const wallE = new THREE.Mesh(
@@ -1126,33 +1127,45 @@ function createForestView() {
 
   const farZ = -ROOM_DEPTH / 2 - SOUTH_EXPAND - WALL_THICKNESS;
 
+  const moonGlow = new THREE.Mesh(
+    new THREE.PlaneGeometry(26, 6),
+    new THREE.MeshBasicMaterial({
+      color: 0x112233,
+      transparent: true,
+      opacity: 0.20,
+      depthWrite: false,
+    })
+  );
+  moonGlow.position.set(0, ROOM_HEIGHT / 2, farZ - 5);
+  group.add(moonGlow);
+
   const bgMat = new THREE.MeshBasicMaterial({
-    color: 0x020210,
+    color: 0x020208,
     depthWrite: false,
   });
-  const bg = new THREE.Mesh(new THREE.PlaneGeometry(24, 8), bgMat);
-  bg.position.set(0, ROOM_HEIGHT / 2 + 1, farZ - 7);
+  const bg = new THREE.Mesh(new THREE.PlaneGeometry(26, 8), bgMat);
+  bg.position.set(0, ROOM_HEIGHT / 2 + 2, farZ - 8);
   group.add(bg);
 
   const groundMat = new THREE.MeshBasicMaterial({
-    color: 0x050a05,
+    color: 0x040804,
   });
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(24, 4), groundMat);
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(26, 5), groundMat);
   ground.rotation.x = -Math.PI / 2;
   ground.position.set(0, -1.5, farZ - 2.5);
   group.add(ground);
 
-  const treeMat = new THREE.MeshBasicMaterial({ color: 0x030504 });
+  const treeMat = new THREE.MeshBasicMaterial({ color: 0x020402 });
 
   const trees = [];
-  for (let i = 0; i < 55; i++) {
-    const tx = (Math.random() - 0.5) * 22;
-    const tz = farZ - 0.5 - Math.random() * 4;
-    const th = 2.5 + Math.random() * 5;
+  for (let i = 0; i < 100; i++) {
+    const tx = (Math.random() - 0.5) * 25;
+    const tz = farZ - 0.5 - Math.random() * 5.0;
+    const th = 2.5 + Math.random() * 6.5;
     const r = Math.random();
     let type;
-    if (r < 0.45) type = 'pine';
-    else if (r < 0.80) type = 'round';
+    if (r < 0.55) type = 'pine';
+    else if (r < 0.85) type = 'round';
     else type = 'bare';
     trees.push({ x: tx, z: tz, h: th, type });
   }
@@ -1160,30 +1173,30 @@ function createForestView() {
 
   trees.forEach(t => {
     if (t.type === 'pine') {
-      const bw = 0.08 + Math.random() * 0.06;
-      const tw = 0.5 + Math.random() * 0.8;
-      const trunkH = t.h * 0.35;
+      const bw = 0.06 + Math.random() * 0.07;
+      const tw = 0.5 + Math.random() * 1.0;
+      const trunkH = t.h * 0.32;
       const trunk = new THREE.Mesh(
-        new THREE.CylinderGeometry(bw, bw * 1.4, trunkH, 6),
+        new THREE.CylinderGeometry(bw, bw * 1.5, trunkH, 6),
         treeMat
       );
       trunk.position.set(t.x, -1.5 + trunkH / 2, t.z);
       group.add(trunk);
 
-      const layers = 2 + Math.floor(Math.random() * 3);
+      const layers = 2 + Math.floor(Math.random() * 4);
       for (let l = 0; l < layers; l++) {
         const lh = t.h * 0.55 / layers;
-        const lw = tw - l * tw * 0.28;
+        const lw = tw - l * tw * 0.22;
         const ly = -1.5 + trunkH + l * lh + lh / 2;
         const cone = new THREE.Mesh(
-          new THREE.ConeGeometry(Math.max(0.15, lw), lh, 7),
+          new THREE.ConeGeometry(Math.max(0.12, lw), lh, 7),
           treeMat
         );
         cone.position.set(t.x, ly, t.z);
         group.add(cone);
       }
     } else if (t.type === 'round') {
-      const bw = 0.06 + Math.random() * 0.08;
+      const bw = 0.05 + Math.random() * 0.08;
       const trunkH = t.h * 0.45;
       const trunk = new THREE.Mesh(
         new THREE.CylinderGeometry(bw, bw * 1.3, trunkH, 6),
@@ -1192,28 +1205,28 @@ function createForestView() {
       trunk.position.set(t.x, -1.5 + trunkH / 2, t.z);
       group.add(trunk);
 
-      const canopyR = 0.5 + Math.random() * 0.9;
-      const canopyY = -1.5 + trunkH + canopyR * 0.7;
+      const canopyR = 0.5 + Math.random() * 1.0;
+      const canopyY = -1.5 + trunkH + canopyR * 0.65;
       const canopy = new THREE.Mesh(
         new THREE.SphereGeometry(canopyR, 8, 6),
         treeMat
       );
-      canopy.scale.set(1, 0.8, 1);
+      canopy.scale.set(1, 0.75, 1);
       canopy.position.set(t.x, canopyY, t.z);
       group.add(canopy);
 
-      if (Math.random() > 0.5) {
-        const subR = canopyR * 0.6;
+      if (Math.random() > 0.4) {
+        const subR = canopyR * 0.55;
         const sub = new THREE.Mesh(
           new THREE.SphereGeometry(subR, 7, 5),
           treeMat
         );
-        sub.position.set(t.x + canopyR * 0.4, canopyY + canopyR * 0.3, t.z);
+        sub.position.set(t.x + canopyR * 0.35, canopyY + canopyR * 0.25, t.z);
         group.add(sub);
       }
     } else {
-      const bw = 0.04 + Math.random() * 0.05;
-      const trunkH = t.h * 0.7;
+      const bw = 0.03 + Math.random() * 0.04;
+      const trunkH = t.h * 0.75;
       const trunk = new THREE.Mesh(
         new THREE.CylinderGeometry(bw, bw * 1.1, trunkH, 6),
         treeMat
@@ -1221,17 +1234,17 @@ function createForestView() {
       trunk.position.set(t.x, -1.5 + trunkH / 2, t.z);
       group.add(trunk);
 
-      const branches = 2 + Math.floor(Math.random() * 3);
+      const branches = 2 + Math.floor(Math.random() * 4);
       for (let b = 0; b < branches; b++) {
-        const angle = (Math.random() - 0.5) * 1.0;
-        const bLen = 0.3 + Math.random() * 0.6;
+        const angle = (Math.random() - 0.5) * 1.2;
+        const bLen = 0.25 + Math.random() * 0.7;
         const branch = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.02, 0.03, bLen, 5),
+          new THREE.CylinderGeometry(0.015, 0.025, bLen, 5),
           treeMat
         );
         branch.position.set(
           t.x + Math.sin(angle) * bLen * 0.3,
-          -1.5 + trunkH * 0.5 + b * trunkH * 0.25,
+          -1.5 + trunkH * 0.5 + b * trunkH * 0.22,
           t.z
         );
         branch.rotation.z = angle;
@@ -1248,27 +1261,27 @@ function createProfDesk() {
 
   const deskMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.6, metalness: 0.1 });
   const top = new THREE.Mesh(
-    new THREE.BoxGeometry(1.4, 0.05, 1.0),
+    new THREE.BoxGeometry(1.6, 0.05, 1.2),
     deskMat
   );
-  top.position.set(6.0, 0.85, -6.0);
+  top.position.set(6.0, 0.85, -5.5);
   top.castShadow = true;
   top.receiveShadow = true;
   group.add(top);
 
   [
-    [0.65, 0.45], [0.65, -0.45], [-0.65, 0.45], [-0.65, -0.45],
+    [0.75, 0.55], [0.75, -0.55], [-0.75, 0.55], [-0.75, -0.55],
   ].forEach(([lx, lz]) => {
     const leg = new THREE.Mesh(
       new THREE.BoxGeometry(0.05, 0.82, 0.05),
       deskMat
     );
-    leg.position.set(6.0 + lx, 0.41, -6.0 + lz);
+    leg.position.set(6.0 + lx, 0.41, -5.5 + lz);
     group.add(leg);
   });
 
   const chairGroup = new THREE.Group();
-  chairGroup.position.set(6.0, 0, -5.6);
+  chairGroup.position.set(6.0, 0, -5.1);
 
   const seatMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.5, metalness: 0.2 });
   const seat = new THREE.Mesh(
@@ -1315,31 +1328,53 @@ function createProfDesk() {
   group.add(chairGroup);
 
   const monProfMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.4, metalness: 0.1 });
+  if (!_projIconCanvas) {
+    _projIconCanvas = document.createElement('canvas');
+    _projIconCanvas.width = 128;
+    _projIconCanvas.height = 96;
+    _projIconCtx = _projIconCanvas.getContext('2d');
+    _projIconTex = new THREE.CanvasTexture(_projIconCanvas);
+    _projIconTex.minFilter = THREE.LinearFilter;
+    _projIconTex.magFilter = THREE.LinearFilter;
+    _projIconTex.colorSpace = THREE.SRGBColorSpace;
+  }
+  const _oc = _projIconCtx;
+  _oc.fillStyle = '#000000';
+  _oc.fillRect(0, 0, 128, 96);
+  _oc.fillStyle = '#222222';
+  _oc.font = '10px monospace';
+  _oc.textAlign = 'center';
+  _oc.fillText('SIN SEÑAL', 64, 48);
+  _projIconTex.needsUpdate = true;
   const monProfScreenMat = new THREE.MeshStandardMaterial({
-    color: 0x335588, emissive: 0x335588, emissiveIntensity: 0.3,
+    color: 0x000000, emissive: 0x000000, emissiveIntensity: 0,
+    map: _projIconTex, emissiveMap: _projIconTex,
   });
-  [-0.3, 0.3].forEach(ox => {
-    const mframe = new THREE.Mesh(
-      new THREE.BoxGeometry(0.55, 0.38, 0.06),
-      monProfMat
-    );
-    mframe.position.set(6.0 + ox, 1.08, -6.5);
-    group.add(mframe);
 
-    const mscreen = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.48, 0.32),
-      monProfScreenMat.clone()
-    );
-    mscreen.position.set(6.0 + ox, 1.08, -6.46);
-    group.add(mscreen);
-  });
+  const mframe = new THREE.Mesh(
+    new THREE.BoxGeometry(0.55, 0.38, 0.06),
+    monProfMat
+  );
+  mframe.position.set(6.0, 1.08, -6.0);
+  group.add(mframe);
+
+  const screenGeo = new THREE.PlaneGeometry(0.48, 0.32);
+  const uv = screenGeo.attributes.uv;
+  for (let i = 0; i < uv.count; i++) uv.setXY(i, 1 - uv.getX(i), uv.getY(i));
+  const mscreen = new THREE.Mesh(
+    screenGeo,
+    monProfScreenMat
+  );
+  mscreen.position.set(6.0, 1.08, -6.04);
+  mscreen.rotation.y = Math.PI;
+  group.add(mscreen);
 
   const towerProfMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.5, metalness: 0.15 });
   const profTower = new THREE.Mesh(
     new THREE.BoxGeometry(0.20, 0.45, 0.32),
     towerProfMat
   );
-  profTower.position.set(5.55, 1.05, -6.0);
+  profTower.position.set(5.55, 1.05, -5.5);
   group.add(profTower);
 
   const ledProf = new THREE.Mesh(
@@ -1350,10 +1385,68 @@ function createProfDesk() {
       emissiveIntensity: 1.5,
     })
   );
-  ledProf.position.set(5.63, 1.22, -6.0);
+  ledProf.position.set(5.63, 1.22, -5.5);
   group.add(ledProf);
 
+  const redBlink = new THREE.Mesh(
+    new THREE.BoxGeometry(0.10, 0.06, 0.02),
+    new THREE.MeshStandardMaterial({
+      color: 0xff1100,
+      emissive: 0xff1100,
+      emissiveIntensity: 2.0,
+    })
+  );
+  redBlink.position.set(7.1, 0.04, -6.5);
+  group.add(redBlink);
+  profBlinkLight = { light: redBlink, baseIntensity: 2.0, phase: Math.random() * 10 };
+
+  const cableGeo = new THREE.CylinderGeometry(0.015, 0.015, 1.8, 6);
+  const cable1 = new THREE.Mesh(cableGeo, new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.8 }));
+  cable1.position.set(5.55, 0.85, -5.5);
+  cable1.rotation.z = -0.7;
+  group.add(cable1);
+
+  const cable2 = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.015, 0.015, 1.4, 6),
+    new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.8 })
+  );
+  cable2.position.set(6.3, 0.3, -5.9);
+  cable2.rotation.z = Math.PI / 3;
+  group.add(cable2);
+
+  const cable3 = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.015, 0.015, 1.2, 6),
+    new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.8 })
+  );
+  cable3.position.set(6.8, 0.06, -6.2);
+  cable3.rotation.z = 0;
+  group.add(cable3);
+
+  profScreenRef = mscreen;
+  profScreenMatRef = monProfScreenMat;
+
   return group;
+}
+
+function createRectFrustum(w1, h1, w2, h2, depth) {
+  const hw1 = w1 / 2, hh1 = h1 / 2;
+  const hw2 = w2 / 2, hh2 = h2 / 2;
+  const pos = new Float32Array([
+    -hw1, -hh1,  depth / 2,
+     hw1, -hh1,  depth / 2,
+     hw1,  hh1,  depth / 2,
+    -hw1,  hh1,  depth / 2,
+    -hw2, -hh2, -depth / 2,
+     hw2, -hh2, -depth / 2,
+     hw2,  hh2, -depth / 2,
+    -hw2,  hh2, -depth / 2,
+  ]);
+  const idx = [0,1,5, 0,5,4, 1,2,6, 1,6,5, 2,3,7, 2,7,6, 3,0,4, 3,4,7];
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  return geo;
 }
 
 function createProjector() {
@@ -1380,6 +1473,7 @@ function createProjector() {
   body.position.set(0, -0.42, 0);
   body.rotation.x = -0.25;
   group.add(body);
+  projBodyRef = body;
 
   const lip = new THREE.Mesh(
     new THREE.BoxGeometry(0.58, 0.08, 0.10),
@@ -1427,6 +1521,42 @@ function createProjector() {
   );
   led.position.set(0.25, -0.36, -0.10);
   group.add(led);
+
+  const projBtn = new THREE.Mesh(
+    new THREE.SphereGeometry(0.025, 8, 8),
+    new THREE.MeshStandardMaterial({ color: 0xcc0000, roughness: 0.3 })
+  );
+  projBtn.position.set(0, -0.36, 0.14);
+  group.add(projBtn);
+  projButtonRef = projBtn;
+
+  const lensL = new THREE.Vector3(0, -0.52, -0.24);
+  const telonL = new THREE.Vector3(0, 2.5 - (ROOM_HEIGHT - 0.08), -7.5 + 2.5);
+  const beamDir = new THREE.Vector3().subVectors(telonL, lensL);
+  const beamH = beamDir.length();
+  beamDir.normalize();
+  const beamMid = new THREE.Vector3().addVectors(lensL, telonL).multiplyScalar(0.5);
+  const negDir = beamDir.clone().negate();
+  const beamLayers = [
+    [0.08, 0.06, 2.4, 1.8, 0.035],
+    [0.20, 0.15, 3.2, 2.4, 0.015],
+    [0.40, 0.30, 4.0, 3.0, 0.006],
+  ];
+  const beamGroup = new THREE.Group();
+  beamLayers.forEach(([w1, h1, w2, h2, op]) => {
+    const g = createRectFrustum(w1, h1, w2, h2, beamH);
+    const m = new THREE.MeshBasicMaterial({
+      color: 0x88bbff, transparent: true, opacity: op,
+      blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
+    });
+    const mesh = new THREE.Mesh(g, m);
+    mesh.position.copy(beamMid);
+    mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), negDir);
+    beamGroup.add(mesh);
+  });
+  beamGroup.visible = false;
+  group.add(beamGroup);
+  beamRef = beamGroup;
 
   return group;
 }
@@ -1538,6 +1668,20 @@ const roomScreenMats = [];
 const roomScreenMeshes = [];
 
 const eyeInstances = [];
+let profBlinkLight = null;
+let profScreenRef = null;
+let profScreenMatRef = null;
+let telonRef = null;
+let projButtonRef = null;
+let projBodyRef = null;
+let beamRef = null;
+
+export const gameState = {
+  remoteCollected: false,
+  powerConnected: false,
+  projectorOn: false,
+  combinationDigits: { violet: 0, red: 0, green: 0, blue: 0 },
+};
 
 function createHallwayLights() {
   const hlMat = new THREE.MeshStandardMaterial({
@@ -1611,7 +1755,7 @@ function createHallwayLights() {
   return group;
 }
 
-export { createWallMaterial, createNoisyTexture, hallwayFlickerLights, hallwayDeadLights, hallwayScreenMats, ceilingFlickerLights, roomScreenMats, roomScreenMeshes, hallwayScreenMeshes, eyeInstances };
+export { createWallMaterial, createNoisyTexture, hallwayFlickerLights, hallwayDeadLights, hallwayScreenMats, ceilingFlickerLights, roomScreenMats, roomScreenMeshes, hallwayScreenMeshes, eyeInstances, profBlinkLight, profScreenRef, profScreenMatRef, telonRef, projButtonRef, beamRef };
 
 export function setLightingPreset(preset) {
   const p = LIGHTING_PRESETS[preset];
@@ -1646,6 +1790,133 @@ export function getCurrentPreset() {
   return currentPreset;
 }
 
+export function connectPower() {
+  if (gameState.powerConnected) return;
+  gameState.powerConnected = true;
+  if (profBlinkLight && profBlinkLight.light && profBlinkLight.light.material) {
+    profBlinkLight.light.material.color.set(0x33ff33);
+    profBlinkLight.light.material.emissive.set(0x33ff33);
+  }
+  if (profScreenRef && profScreenRef.material) {
+    drawProjectorIcon();
+  }
+}
+
+export function toggleProjector() {
+  gameState.projectorOn = !gameState.projectorOn;
+  if (profScreenRef && profScreenRef.material) {
+    drawProjectorIcon();
+  }
+}
+
+let _projIconCanvas = null;
+let _projIconCtx = null;
+let _projIconTex = null;
+
+function drawProjectorIcon() {
+  if (!_projIconCtx || !profScreenRef || !profScreenRef.material) return;
+  const ctx = _projIconCtx;
+  ctx.clearRect(0, 0, 128, 96);
+  ctx.fillStyle = '#000000';
+  ctx.fillRect(0, 0, 128, 96);
+
+  ctx.save();
+  ctx.translate(64, 48);
+  ctx.scale(-1, 1);
+  ctx.translate(-64, -48);
+
+  const cx = 64, cy = 48;
+
+  if (gameState.projectorOn) {
+    ctx.strokeStyle = '#44cc44';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 18, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - 14);
+    ctx.lineTo(cx, cy + 6);
+    ctx.stroke();
+  } else {
+    ctx.fillStyle = '#cc0000';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 18, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#000000';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 13, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#cc0000';
+    ctx.fillRect(cx - 3, cy - 18, 6, 18);
+  }
+
+  ctx.fillStyle = '#aaaaaa';
+  ctx.font = '9px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.fillText(gameState.projectorOn ? 'PROYECTOR ACTIVO' : 'PROYECTOR APAGADO', 64, 78);
+
+  ctx.restore();
+
+  _projIconTex.needsUpdate = true;
+  profScreenRef.material.color.set(0xffffff);
+  profScreenRef.material.map = _projIconTex;
+  profScreenRef.material.emissiveMap = _projIconTex;
+  profScreenRef.material.emissive.set(0xffffff);
+  profScreenRef.material.emissiveIntensity = 2.0;
+  profScreenRef.material.needsUpdate = true;
+}
+
+export function createExtraInteractables(scene) {
+  const meshes = [];
+  const data = new Map();
+
+  const remoteMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.5, metalness: 0.3 });
+  const remote = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.03, 0.14), remoteMat);
+  remote.position.set(5.0, 0.02, -3.0);
+  scene.add(remote);
+  meshes.push(remote);
+
+  const remoteLedMat = new THREE.MeshStandardMaterial({
+    color: 0xff2200, emissive: 0xff2200, emissiveIntensity: 1.5,
+  });
+  const remoteLed = new THREE.Mesh(new THREE.SphereGeometry(0.008, 8, 8), remoteLedMat);
+  remoteLed.position.set(5.0, 0.04, -3.04);
+  scene.add(remoteLed);
+
+  data.set(remote, {
+    id: 'remote',
+    label: 'control remoto',
+    message: 'Presiona E para recoger',
+    action() {
+      if (gameState.remoteCollected) return;
+      gameState.remoteCollected = true;
+      remote.visible = false;
+      remoteLed.visible = false;
+      this.message = 'Control remoto recogido.';
+    },
+  });
+
+  if (projBodyRef) {
+    meshes.push(projBodyRef);
+    data.set(projBodyRef, {
+      id: 'proyector',
+      label: 'proyector',
+      message: 'Necesitas el control remoto.',
+      action() {
+        if (!gameState.remoteCollected) {
+          this.message = 'Necesitas el control remoto.';
+          return;
+        }
+        toggleProjector();
+        this.message = gameState.projectorOn ? 'Proyector encendido.' : 'Proyector apagado.';
+      },
+    });
+  }
+
+  return { meshes, data };
+}
+
 export function spawnEye(meshes, mats, type) {
   if (meshes.length === 0) return;
   const used = new Set(eyeInstances.map(e => e.idx));
@@ -1674,7 +1945,9 @@ export function spawnEye(meshes, mats, type) {
   tex.magFilter = THREE.LinearFilter;
 
   meshes[idx].material.map = tex;
-  meshes[idx].material.emissiveIntensity = 0.8;
+  meshes[idx].material.emissiveMap = tex;
+  meshes[idx].material.emissive.set(0xffffff);
+  meshes[idx].material.emissiveIntensity = 0.4;
   meshes[idx].material.needsUpdate = true;
 
   const instance = {
@@ -1686,6 +1959,10 @@ export function spawnEye(meshes, mats, type) {
     tex,
     frameCount: 0,
     type,
+    glitchType: 0,
+    glitchTimer: 0,
+    stareTimer: 0,
+    saccadeTarget: null,
   };
   eyeInstances.push(instance);
   return instance;
@@ -1694,6 +1971,8 @@ export function spawnEye(meshes, mats, type) {
 export function clearEye(instance) {
   const idx = instance.idx;
   instance.meshes[idx].material.map = null;
+  instance.meshes[idx].material.emissiveMap = null;
+  instance.meshes[idx].material.emissive.set(0x445588);
   instance.meshes[idx].material.emissiveIntensity = instance.mats[idx].emissiveIntensity;
   instance.meshes[idx].material.needsUpdate = true;
   eyeInstances.splice(eyeInstances.indexOf(instance), 1);
@@ -1714,27 +1993,37 @@ function drawEye(instance, camera) {
   const cx = w / 2, cy = h / 2 + 4;
   const rx = w * 0.44, ry = h * 0.30;
   const fc = instance.frameCount;
-
-  ctx.clearRect(0, 0, w, h);
-
   const worldPos = new THREE.Vector3();
   mesh.getWorldPosition(worldPos);
   const camPos = camera.position.clone();
-  let dirX = (camPos.x - worldPos.x) * 0.02;
-  let dirY = (camPos.y - worldPos.y) * 0.02;
+
+  if (instance.stareTimer > 0) {
+    instance.stareTimer--;
+  } else if (Math.random() < 0.005) {
+    instance.stareTimer = 10 + Math.floor(Math.random() * 20);
+  }
+
+  let dirX, dirY;
+  if (instance.stareTimer > 0) {
+    dirX = (camPos.x - worldPos.x) * 0.04;
+    dirY = (camPos.y - worldPos.y) * 0.04;
+  } else {
+    dirX = (camPos.x - worldPos.x) * 0.02;
+    dirY = (camPos.y - worldPos.y) * 0.02;
+  }
   const dlen = Math.sqrt(dirX * dirX + dirY * dirY) || 1;
   dirX /= dlen; dirY /= dlen;
 
-  const gazeX = dirX * 16;
-  const gazeY = -dirY * 12;
-  const ex = cx + gazeX;
-  const ey = cy + gazeY;
+  const gazeX = (instance.stareTimer > 0 ? 40 : 16) * dirX;
+  const gazeY = (instance.stareTimer > 0 ? -30 : -12) * dirY;
+  const ex = cx + gazeX + (Math.random() - 0.5) * (instance.stareTimer > 0 ? 1 : 2);
+  const ey = cy + gazeY + (Math.random() - 0.5) * (instance.stareTimer > 0 ? 1 : 2);
   const jitX = Math.sin(fc * 0.11) * 2 + Math.sin(fc * 0.37) * 1;
   const jitY = Math.cos(fc * 0.13) * 1.8 + Math.cos(fc * 0.41) * 0.8;
-  const spx = ex + jitX;
-  const spy = ey + jitY;
+  const spx = ex + jitX + (Math.random() - 0.5) * (instance.stareTimer > 0 ? 0 : 3);
+  const spy = ey + jitY + (Math.random() - 0.5) * (instance.stareTimer > 0 ? 0 : 3);
 
-  ctx.fillStyle = '#1a0000';
+  ctx.fillStyle = '#000000';
   ctx.fillRect(0, 0, w, h);
 
   ctx.save();
@@ -1744,12 +2033,11 @@ function drawEye(instance, camera) {
 
   const scleraR = rx * 1.3;
   const scleraGrad = ctx.createRadialGradient(ex, ey, scleraR * 0.05, ex, ey, scleraR);
-  scleraGrad.addColorStop(0, '#f8f0e0');
-  scleraGrad.addColorStop(0.3, '#f0e8d4');
-  scleraGrad.addColorStop(0.6, '#ece0c8');
-  scleraGrad.addColorStop(0.8, '#d8c8a8');
-  scleraGrad.addColorStop(0.95, '#c0a880');
-  scleraGrad.addColorStop(1, '#a08060');
+  scleraGrad.addColorStop(0, '#fafafa');
+  scleraGrad.addColorStop(0.4, '#e8e8e8');
+  scleraGrad.addColorStop(0.7, '#b0b0b0');
+  scleraGrad.addColorStop(0.9, '#666666');
+  scleraGrad.addColorStop(1, '#444444');
   ctx.fillStyle = scleraGrad;
   ctx.fillRect(ex - scleraR, ey - scleraR, scleraR * 2, scleraR * 2);
   ctx.restore();
@@ -1758,146 +2046,78 @@ function drawEye(instance, camera) {
   ctx.beginPath();
   ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
   ctx.clip();
-
-  const veinColors = [
-    'rgba(180,60,50,0.20)', 'rgba(160,55,45,0.24)',
-    'rgba(190,70,60,0.16)', 'rgba(170,50,40,0.22)',
-    'rgba(155,45,35,0.18)',
-  ];
-  for (let v = 0; v < 14; v++) {
-    const vx = ex + Math.cos(v * 1.8 + 0.3) * rx * 0.85;
-    const vy = ey + Math.sin(v * 1.8 + 0.3) * ry * 0.7;
-    const vc = veinColors[v % veinColors.length];
-    ctx.strokeStyle = vc;
-    ctx.lineWidth = 0.3 + Math.random() * 0.4;
+  for (let v = 0; v < 10; v++) {
+    const vx = ex + (Math.random() - 0.5) * rx * 1.4;
+    const vy = ey + (Math.random() - 0.5) * ry * 1.4;
+    ctx.strokeStyle = `rgba(180,${20+Math.random()*30},${20+Math.random()*30},${0.12+Math.random()*0.18})`;
+    ctx.lineWidth = 0.4 + Math.random() * 0.8;
     ctx.beginPath();
-    ctx.moveTo(ex + Math.cos(v * 0.3) * rx * 0.25, ey + Math.sin(v * 0.3) * ry * 0.2);
-    ctx.lineTo(vx, vy);
-    ctx.stroke();
-    if (Math.random() > 0.5) {
-      ctx.lineWidth = 0.2;
-      ctx.beginPath();
-      const bx = vx + (Math.random() - 0.5) * rx * 0.25;
-      const by = vy + (Math.random() - 0.5) * ry * 0.2;
-      ctx.moveTo(vx, vy);
-      ctx.lineTo(bx, by);
-      ctx.stroke();
+    ctx.moveTo(vx, vy);
+    for (let s = 0; s < 4; s++) {
+      ctx.lineTo(vx + (Math.random() - 0.5) * 18, vy + (Math.random() - 0.5) * 10);
     }
+    ctx.stroke();
   }
   ctx.restore();
+
+  const sphereShadow = ctx.createRadialGradient(ex - 6, ey - 4, rx * 0.15, ex, ey, rx * 1.2);
+  sphereShadow.addColorStop(0, 'rgba(255,255,255,0.10)');
+  sphereShadow.addColorStop(0.4, 'rgba(255,255,255,0.02)');
+  sphereShadow.addColorStop(0.7, 'rgba(0,0,0,0.08)');
+  sphereShadow.addColorStop(1, 'rgba(0,0,0,0.35)');
+  ctx.fillStyle = sphereShadow;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+  ctx.fill();
 
   const irisR = w * 0.21;
   const pupilR = w * 0.095;
 
-  const irisGrad = ctx.createRadialGradient(ex, ey, irisR * 0.05, ex, ey, irisR);
-  irisGrad.addColorStop(0, '#0a0402');
-  irisGrad.addColorStop(0.08, '#150a04');
-  irisGrad.addColorStop(0.2, '#3a1a08');
-  irisGrad.addColorStop(0.4, '#6a3518');
-  irisGrad.addColorStop(0.6, '#8a5020');
-  irisGrad.addColorStop(0.75, '#5a3015');
-  irisGrad.addColorStop(0.9, '#2a1208');
-  irisGrad.addColorStop(1, '#080402');
+  const irisGrad = ctx.createRadialGradient(ex, ey, irisR * 0.1, ex, ey, irisR);
+  irisGrad.addColorStop(0, '#111111');
+  irisGrad.addColorStop(0.5, '#333333');
+  irisGrad.addColorStop(0.85, '#222222');
+  irisGrad.addColorStop(1, '#0a0a0a');
   ctx.fillStyle = irisGrad;
   ctx.beginPath();
   ctx.arc(ex, ey, irisR, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(ex, ey, irisR, 0, Math.PI * 2);
-  ctx.clip();
-  for (let f = 0; f < 35; f++) {
-    const ang = f * (Math.PI * 2 / 35);
-    const rx1 = irisR * 0.15;
-    const rx2 = irisR * 0.92 + Math.sin(fc * 0.02 + f * 0.7) * 2;
-    const x1 = ex + Math.cos(ang) * rx1;
-    const y1 = ey + Math.sin(ang) * rx1;
-    const x2 = ex + Math.cos(ang) * rx2;
-    const y2 = ey + Math.sin(ang) * rx2;
-    const brightness = 40 + Math.sin(f * 2.7) * 15;
-    ctx.strokeStyle = `rgba(${brightness},${Math.floor(brightness*0.5)},${Math.floor(brightness*0.3)},0.35)`;
-    ctx.lineWidth = 0.4 + Math.abs(Math.sin(f * 1.3)) * 0.4;
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
-    ctx.stroke();
-  }
-
-  for (let c = 0; c < 8; c++) {
-    const ca = Math.random() * Math.PI * 2;
-    const cr = irisR * 0.35 + Math.random() * irisR * 0.5;
-    const cpx = ex + Math.cos(ca) * cr;
-    const cpy = ey + Math.sin(ca) * cr;
-    ctx.fillStyle = 'rgba(10,5,2,0.25)';
-    ctx.beginPath();
-    ctx.arc(cpx, cpy, irisR * 0.04 + Math.random() * irisR * 0.06, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.restore();
-
-  ctx.strokeStyle = 'rgba(0,0,0,0.7)';
-  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+  ctx.lineWidth = 2.0;
   ctx.beginPath();
   ctx.arc(ex, ey, irisR, 0, Math.PI * 2);
   ctx.stroke();
 
-  ctx.strokeStyle = 'rgba(10,5,3,0.5)';
+  ctx.strokeStyle = 'rgba(0,0,0,0.5)';
   ctx.lineWidth = 1.0;
   ctx.beginPath();
-  ctx.arc(ex, ey, irisR - 3, 0, Math.PI * 2);
+  ctx.arc(ex, ey, irisR - 2, 0, Math.PI * 2);
   ctx.stroke();
 
-  const outerIrisGrad = ctx.createRadialGradient(ex, ey, irisR * 0.7, ex, ey, irisR);
-  outerIrisGrad.addColorStop(0, 'rgba(0,0,0,0)');
-  outerIrisGrad.addColorStop(0.6, 'rgba(0,0,0,0.05)');
-  outerIrisGrad.addColorStop(1, 'rgba(0,0,0,0.35)');
-  ctx.fillStyle = outerIrisGrad;
-  ctx.beginPath();
-  ctx.arc(ex, ey, irisR, 0, Math.PI * 2);
-  ctx.fill();
-
-  const pupilShrink = 1 + Math.sin(fc * 0.008) * 0.08;
+  const pupilShrink = 0.65 + Math.sin(fc * 0.012) * 0.45;
   const effectivePupilR = pupilR * pupilShrink;
-  const pupilGrad = ctx.createRadialGradient(ex, ey, effectivePupilR * 0.5, ex, ey, effectivePupilR);
-  pupilGrad.addColorStop(0, '#000000');
-  pupilGrad.addColorStop(0.8, '#0a0505');
-  pupilGrad.addColorStop(1, '#150a08');
-  ctx.fillStyle = pupilGrad;
+  ctx.fillStyle = '#000000';
   ctx.beginPath();
   ctx.arc(spx, spy, effectivePupilR, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.strokeStyle = 'rgba(15,8,5,0.6)';
-  ctx.lineWidth = 1.0;
+  ctx.fillStyle = 'rgba(255,255,255,0.55)';
   ctx.beginPath();
-  ctx.arc(spx, spy, effectivePupilR, 0, Math.PI * 2);
-  ctx.stroke();
-
-  const irisReflectGrad = ctx.createRadialGradient(ex - 2, ey + 1, effectivePupilR * 1.1, ex, ey, effectivePupilR * 1.6);
-  irisReflectGrad.addColorStop(0, 'rgba(180,120,80,0.08)');
-  irisReflectGrad.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = irisReflectGrad;
-  ctx.beginPath();
-  ctx.arc(ex, ey, irisR, 0, Math.PI * 2);
+  ctx.arc(spx - w * 0.025, spy - w * 0.025, w * 0.038, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.fillStyle = 'rgba(255,255,255,0.75)';
-  ctx.beginPath();
-  ctx.arc(spx - w * 0.025, spy - w * 0.025, w * 0.022, 0, Math.PI * 2);
-  ctx.fill();
-
-  const hl2Grad = ctx.createRadialGradient(spx - w * 0.025, spy - w * 0.025, 0, spx - w * 0.025, spy - w * 0.025, w * 0.022);
-  hl2Grad.addColorStop(0, 'rgba(255,255,255,0.6)');
+  const hl2Grad = ctx.createRadialGradient(spx - w * 0.025, spy - w * 0.025, 0, spx - w * 0.025, spy - w * 0.025, w * 0.038);
+  hl2Grad.addColorStop(0, 'rgba(255,255,255,0.35)');
   hl2Grad.addColorStop(1, 'rgba(180,200,240,0.0)');
   ctx.fillStyle = hl2Grad;
   ctx.beginPath();
-  ctx.arc(spx - w * 0.025, spy - w * 0.025, w * 0.04, 0, Math.PI * 2);
+  ctx.arc(spx - w * 0.025, spy - w * 0.025, w * 0.08, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.fillStyle = 'rgba(255,255,255,0.25)';
+  ctx.fillStyle = 'rgba(255,255,255,0.30)';
   ctx.beginPath();
-  ctx.arc(spx + w * 0.045, spy + w * 0.06, w * 0.007, 0, Math.PI * 2);
+  ctx.arc(spx + w * 0.045, spy + w * 0.06, w * 0.012, 0, Math.PI * 2);
   ctx.fill();
 
   ctx.save();
@@ -1906,36 +2126,42 @@ function drawEye(instance, camera) {
   ctx.clip();
 
   const lidGrad = ctx.createLinearGradient(0, cy - ry, 0, cy - ry * 0.7);
-  lidGrad.addColorStop(0, 'rgba(20,2,2,0.55)');
-  lidGrad.addColorStop(0.5, 'rgba(15,3,3,0.25)');
+  lidGrad.addColorStop(0, 'rgba(0,0,0,0.55)');
+  lidGrad.addColorStop(0.5, 'rgba(0,0,0,0.25)');
   lidGrad.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = lidGrad;
   ctx.fillRect(cx - rx - 4, cy - ry, rx * 2 + 8, ry * 0.7);
 
   const lowerLidGrad = ctx.createLinearGradient(0, cy + ry * 0.7, 0, cy + ry);
   lowerLidGrad.addColorStop(0, 'rgba(0,0,0,0)');
-  lowerLidGrad.addColorStop(0.5, 'rgba(15,3,3,0.15)');
-  lowerLidGrad.addColorStop(1, 'rgba(20,2,2,0.35)');
+  lowerLidGrad.addColorStop(0.5, 'rgba(0,0,0,0.15)');
+  lowerLidGrad.addColorStop(1, 'rgba(0,0,0,0.35)');
   ctx.fillStyle = lowerLidGrad;
   ctx.fillRect(cx - rx - 4, cy + ry * 0.7, rx * 2 + 8, ry * 0.3);
   ctx.restore();
 
-  ctx.strokeStyle = 'rgba(30,15,10,0.5)';
-  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+  ctx.lineWidth = 3.0;
   ctx.beginPath();
   ctx.ellipse(cx, cy, rx + 1, ry + 1, 0, 0, Math.PI * 2);
   ctx.stroke();
 
-  ctx.strokeStyle = 'rgba(60,30,20,0.25)';
-  ctx.lineWidth = 0.8;
+  ctx.strokeStyle = 'rgba(100,100,100,0.30)';
+  ctx.lineWidth = 1.0;
   ctx.beginPath();
   ctx.ellipse(cx, cy, rx - 3, ry - 2, 0, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  ctx.lineWidth = 6.0;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, rx + 3, ry + 3, 0, 0, Math.PI * 2);
   ctx.stroke();
 
   for (let l = 0; l < 7; l++) {
     const lx = cx - rx + 6 + l * (rx * 2 - 12) / 6;
     const ly = cy - ry + 2;
-    ctx.strokeStyle = 'rgba(20,10,8,0.3)';
+    ctx.strokeStyle = 'rgba(200,200,200,0.3)';
     ctx.lineWidth = 0.5;
     ctx.beginPath();
     ctx.moveTo(lx, ly);
@@ -1943,14 +2169,83 @@ function drawEye(instance, camera) {
     ctx.stroke();
   }
 
+  for (let sy = 0; sy < h; sy += 2) {
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    ctx.fillRect(0, sy, w, 1);
+  }
+
+  for (let i = 0; i < 40; i++) {
+    const nx = Math.random() * w;
+    const ny = Math.random() * h;
+    ctx.fillStyle = `rgba(${Math.random()*40},${Math.random()*60},${Math.random()*40},0.10)`;
+    ctx.fillRect(nx, ny, 2, 1);
+  }
+
+  const vGrad = ctx.createRadialGradient(cx, cy, rx * 0.6, cx, cy, w * 0.8);
+  vGrad.addColorStop(0, 'rgba(0,0,0,0)');
+  vGrad.addColorStop(1, 'rgba(0,0,0,0.35)');
+  ctx.fillStyle = vGrad;
+  ctx.fillRect(0, 0, w, h);
+
+  ctx.fillStyle = 'rgba(0,15,0,0.05)';
+  ctx.fillRect(0, 0, w, h);
+
+  ctx.fillStyle = 'rgba(0,0,0,0.20)';
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, rx + 4, ry + 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+
   const blinkPhase = fc % 210;
   if (blinkPhase < 14) {
     const bp = blinkPhase / 14;
     const lidH = bp < 0.5 ? bp * 2 * ry * 2.2 : (1 - bp) * 2 * ry * 2.2;
-    ctx.fillStyle = '#1a0000';
+    ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, w, lidH);
     ctx.fillRect(0, h - lidH * 0.6, w, lidH * 0.6);
   }
 
   if (instance.tex) instance.tex.needsUpdate = true;
+
+  if (instance.glitchTimer > 0) {
+    instance.glitchTimer--;
+    const gt = instance.glitchType;
+    const w2 = w, h2 = h;
+    if (gt === 1) {
+      const bandY = Math.random() * h2;
+      const bandH = 4 + Math.random() * 20;
+      const shift = (Math.random() > 0.5 ? 1 : -1) * (8 + Math.random() * 30);
+      const imgData = ctx.getImageData(0, bandY, w2, bandH);
+      ctx.putImageData(imgData, shift, bandY);
+    } else if (gt === 2) {
+      const imgData = ctx.getImageData(0, 0, w2, h2);
+      const d = imgData.data;
+      const shift = 8;
+      for (let y = 0; y < h2; y++) {
+        for (let x = 0; x < w2; x++) {
+          const i = (y * w2 + x) * 4;
+          const ri = (y * w2 + Math.max(0, x - shift)) * 4;
+          const bi = (y * w2 + Math.min(w2 - 1, x + shift)) * 4;
+          if (x >= shift) { d[i] = d[ri]; }
+          if (x + shift < w2) { d[i + 2] = d[bi + 2]; }
+        }
+      }
+      ctx.putImageData(imgData, 0, 0);
+    } else if (gt === 3) {
+      for (let i = 0; i < 60; i++) {
+        const nx = Math.random() * w2, ny = Math.random() * h2;
+        ctx.fillStyle = `rgba(${Math.random()*255},${Math.random()*255},${Math.random()*255},${0.2+Math.random()*0.4})`;
+        ctx.fillRect(nx, ny, 2 + Math.random() * 8, 1 + Math.random() * 4);
+      }
+    } else if (gt === 4) {
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, w2, h2);
+      for (let i = 0; i < 80; i++) {
+        ctx.fillStyle = `rgba(${80+Math.random()*80},${80+Math.random()*80},${80+Math.random()*80},${Math.random()*0.5})`;
+        ctx.fillRect(Math.random() * w2, Math.random() * h2, 1 + Math.random() * 2, 1 + Math.random() * 2);
+      }
+    }
+  } else if (Math.random() < 0.015) {
+    instance.glitchType = 1 + Math.floor(Math.random() * 4);
+    instance.glitchTimer = 6 + Math.floor(Math.random() * 20);
+  }
 }

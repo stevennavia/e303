@@ -39,11 +39,24 @@ export function setupControls(camera, domElement, lockCallback) {
     }
   });
 
+  document.addEventListener('click', () => {
+    if (!controls.isLocked) {
+      const co = document.getElementById('combo-overlay');
+      if (!co || !co.classList.contains('active')) {
+        controls.lock();
+      }
+    }
+  });
+
   return controls;
 }
 
 export function requestLock() {
   if (controls) controls.lock();
+}
+
+export function releaseLock() {
+  if (controls) controls.unlock();
 }
 
 export function isLocked() {
