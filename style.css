@@ -204,6 +204,24 @@ html, body {
   transform: translateX(-50%);
 }
 
+#controls-hint {
+  position: absolute;
+  bottom: 12%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 22px;
+  letter-spacing: 4px;
+  color: rgba(200, 210, 230, 0.8);
+  text-shadow: 0 0 20px rgba(100, 140, 200, 0.3);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+
+#controls-hint.visible {
+  opacity: 1;
+}
+
 #start-overlay,
 #end-overlay {
   position: fixed;

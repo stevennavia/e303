@@ -8,7 +8,7 @@ import { Timer } from './timer.js';
 import { TIMER_START_SECONDS, PLAYER_SPEED, PLAYER_RADIUS } from './constants.js';
 import { initScene, hallwayFlickerLights, hallwayScreenMats, hallwayScreenMeshes, ceilingFlickerLights, roomScreenMats, roomScreenMeshes, getCurrentPreset, setLightingPreset, spawnEye, clearEye, updateAllEyes, eyeInstances, profBlinkLight, gameState, telonRef, createExtraInteractables, beamRef, bluePuzzleChairRefs, violetEyeState, spawnVioletEye, clearVioletEye, questionMonitorSpawn, questionMonitorClear, questionMonitorState, updateQuestionGlitch, deskColliders, setWhiteboardGlow, victoryDoorRef, doorEyeMeshRef, starfieldRef, blueTexRef, blueScreenIdxRef, violetTexRef, violetScreenIdxRef } from './scene.js';
 import { setupPlayer, clampPlayer } from './player.js';
-import { setupControls, input, requestLock, isLocked } from './controls.js';
+import { setupControls, input, requestLock, releaseLock, isLocked } from './controls.js';
 import { createInteractables } from './interactables.js';
 import { checkInteraction, interact } from './interaction.js';
 import { setAudioCtx, playMonitorGlitch, playEyeBuzz, playGameOver } from './audio.js';
@@ -36,14 +36,22 @@ document.getElementById('game-container').appendChild(renderer.domElement);
 
 let gameOver = false;
 
+const bgMusic = document.getElementById('bg-music');
+if (bgMusic) {
+  bgMusic.volume = 0.3;
+  bgMusic.play().catch(() => {});
+}
+
 showStartOverlay();
 
 document.getElementById('start-overlay').addEventListener('click', () => {
+  if (bgMusic && bgMusic.paused) bgMusic.play();
   requestLock();
 });
 
 document.getElementById('dev-btn').addEventListener('click', (e) => {
   e.stopPropagation();
+  if (bgMusic && bgMusic.paused) bgMusic.play();
   gameState.codeValidated = true;
   requestLock();
 });
@@ -135,6 +143,7 @@ timer.onTick((remaining) => {
 timer.onEnd(() => {
   gameOver = true;
   playGameOver();
+  releaseLock();
   showEndOverlay();
 });
 
@@ -163,6 +172,8 @@ let _telonStareTimer = 0;
 let _telonBlinkTimer = 120;
 let _telonBlinkPhase = 0;
 let _telonEmotion = { current: 'neutral', target: 'neutral', blend: 0, _alarmTimer: 0 };
+
+let _redAlarmLights = null;
 
 const TELON_EMOTIONS = {
   neutral: { ryScale: 1, pupilScale: 1, scleraRed: 0, browRaise: 0, blinkSpeed: 1, gazeIntensity: 0.02, jitter: 1 },
@@ -233,6 +244,10 @@ function updateTelon(t, camera) {
     }
     _greenCodeAssigned = false;
     _telonBuzzPlayed = false;
+    if (_redAlarmLights) {
+      _redAlarmLights.forEach(l => { l.parent.remove(l); });
+      _redAlarmLights = null;
+    }
     return;
   }
 
@@ -631,6 +646,36 @@ function updateTelon(t, camera) {
         playEyeBuzz();
         _telonBuzzPlayed = true;
       }
+
+      const cam = gameState.camera;
+      if (cam && !gameState.cameraAnim.active) {
+        const telonCenter = new THREE.Vector3(0, 2.5, -7.5);
+        const dir = new THREE.Vector3().subVectors(telonCenter, cam.position).normalize();
+        const dist = cam.position.distanceTo(telonCenter);
+        const targetPos = cam.position.clone().add(dir.multiplyScalar(Math.min(2.5, dist - 1.5)));
+
+        gameState.cameraAnim.startPos = cam.position.clone();
+        gameState.cameraAnim.targetPos = targetPos;
+        gameState.cameraAnim.startQuat = cam.quaternion.clone();
+        gameState.cameraAnim.targetQuat = new THREE.Quaternion().setFromUnitVectors(
+          new THREE.Vector3(0, 0, -1), dir
+        );
+        gameState.cameraAnim.progress = 0;
+        gameState.cameraAnim.active = true;
+      }
+
+      gameState.dizzyEndTime = clock.elapsedTime + 10;
+
+      if (!_redAlarmLights) {
+        const redPositions = [[-3.6, 3.5, -3.0], [-3.6, 3.5, 3.0], [3.6, 3.5, -3.0], [3.6, 3.5, 3.0]];
+        _redAlarmLights = [];
+        redPositions.forEach(pos => {
+          const light = new THREE.PointLight(0xff0000, 0, 6, 2);
+          light.position.set(pos[0], pos[1], pos[2]);
+          scene.add(light);
+          _redAlarmLights.push(light);
+        });
+      }
     }
 
     if (camera.position.distanceTo(telonWorld) < 3) {
@@ -683,6 +728,11 @@ function onLockChange(locked) {
       timer.start();
       hideStartOverlay();
       audioNodes = startAudio();
+      const hint = document.getElementById('controls-hint');
+      if (hint) {
+        hint.classList.add('visible');
+        setTimeout(() => hint.classList.remove('visible'), 4000);
+      }
     } else {
       timer.resume();
       if (audioNodes) audioNodes.gain.gain.value = 0.03;
@@ -744,6 +794,13 @@ function animate() {
       pick.flickerStart = t;
       pick.flickerEnd = t + 0.3 + Math.random() * 0.4;
     }
+  }
+
+  if (_redAlarmLights) {
+    const blink = Math.sin(t * 5) > 0;
+    _redAlarmLights.forEach((light, i) => {
+      light.intensity = (i % 2 === 0) === blink ? 2.0 : 0;
+    });
   }
 
   _glitchTimer -= delta;
@@ -996,6 +1053,7 @@ function animate() {
         camera.updateProjectionMatrix();
         gameOver = true;
         playGameOver();
+        releaseLock();
         showEndOverlay();
         gameState.eyeTrapStage = 0;
         gameState.eyeTrapEye = null;
