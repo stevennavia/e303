@@ -14,6 +14,22 @@ html, body {
   user-select: none;
 }
 
+#mobile-block {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: #0a0a12;
+  color: #8899bb;
+  font-family: 'Courier New', monospace;
+  font-size: 22px;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 40px;
+  letter-spacing: 2px;
+}
+
 #game-container {
   position: fixed;
   inset: 0;
@@ -207,6 +223,31 @@ html, body {
   background-position: center;
 }
 
+.overlay-content {
+  text-align: center;
+}
+
+.start-btn {
+  display: block;
+  margin: 380px auto 0;
+  padding: 14px 48px;
+  font-family: 'Courier New', monospace;
+  font-size: 18px;
+  letter-spacing: 4px;
+  background: transparent;
+  border: 1px solid rgba(200, 210, 230, 0.3);
+  color: #ddeeff;
+  cursor: pointer;
+  transition: all 0.3s;
+  backdrop-filter: blur(2px);
+}
+
+.start-btn:hover {
+  background: rgba(200, 210, 230, 0.08);
+  border-color: rgba(200, 210, 230, 0.5);
+  color: #ffffff;
+}
+
 #end-overlay {
   display: none;
   background: #000;
@@ -226,7 +267,8 @@ html, body {
 }
 
 .retry-btn {
-  margin-top: 30px;
+  margin: 400px auto 0;
+  display: block;
   padding: 12px 36px;
   font-family: 'Courier New', monospace;
   font-size: 18px;
@@ -514,13 +556,13 @@ html, body {
 
 .victory-content h1 {
   font-family: 'Courier New', monospace;
-  font-size: 28px;
-  color: #ddeeff;
+  font-size: 32px;
+  color: #ffffff;
   text-align: center;
-  letter-spacing: 2px;
+  letter-spacing: 3px;
   max-width: 500px;
   line-height: 1.6;
-  text-shadow: 0 0 30px rgba(100, 150, 220, 0.5);
+  text-shadow: 0 0 40px rgba(255, 255, 255, 0.5);
 }
 
 .dev-btn {
@@ -539,14 +581,4 @@ html, body {
 .dev-btn:hover {
   background: rgba(255,255,255,0.1);
   color: rgba(255,255,255,0.6);
-}
-
-.victory-content h1 {
-  font-family: 'Courier New', monospace;
-  font-size: 28px;
-  color: #000000;
-  text-align: center;
-  letter-spacing: 2px;
-  max-width: 500px;
-  line-height: 1.6;
 }

@@ -18,6 +18,12 @@ import {
   showClueUI, hideClueUI, initClueUI,
 } from './ui.js';
 
+const mobileBlock = document.getElementById('mobile-block');
+if (window.innerWidth < 768) {
+  mobileBlock.style.display = 'flex';
+  throw new Error('Mobile not supported');
+}
+
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -44,15 +50,6 @@ document.getElementById('dev-btn').addEventListener('click', (e) => {
 
 initComboUI();
 initClueUI();
-
-document.getElementById('victory-overlay').addEventListener('click', () => {
-  location.reload();
-});
-document.addEventListener('keydown', (e) => {
-  if (document.getElementById('victory-overlay').classList.contains('active')) {
-    location.reload();
-  }
-});
 
 const scene = initScene(renderer);
 const camera = setupPlayer();
@@ -954,32 +951,14 @@ function animate() {
   }
 
   if (gameState.grandFinale === 2) {
-    gameState.finaleTimer += delta;
-
-    if (!gameState.finaleFreeFlight) {
-      const t = Math.min(1, gameState.finaleTimer / 6.0);
-      const ease = Math.sin(t * Math.PI * 0.5);
-      if (gameState.finalePullbackStart && gameState.finalePullbackTarget) {
-        camera.position.lerpVectors(gameState.finalePullbackStart, gameState.finalePullbackTarget, ease);
-      }
-      camera.lookAt(0, 1.5, 0);
-      if (input.w || input.a || input.s || input.d || t >= 1) {
-        gameState.finaleFreeFlight = true;
-      }
-      bloomPass.strength = 0.5 * (1 - t);
-    } else {
-      const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-      const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
-      const speed = gameState.finaleFlySpeed * delta;
-      if (input.w) camera.position.addScaledVector(forward, speed);
-      if (input.s) camera.position.addScaledVector(forward, -speed);
-      if (input.a) camera.position.addScaledVector(right, -speed);
-      if (input.d) camera.position.addScaledVector(right, speed);
-      if (input.fPressed) { camera.position.y += speed; input.fPressed = false; }
-      if (document.getElementById('victory-overlay').classList.contains('active')) {
-        bloomPass.strength = 0.2;
-      }
-    }
+    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+    const speed = gameState.finaleFlySpeed * delta;
+    if (input.w) camera.position.addScaledVector(forward, speed);
+    if (input.s) camera.position.addScaledVector(forward, -speed);
+    if (input.a) camera.position.addScaledVector(right, -speed);
+    if (input.d) camera.position.addScaledVector(right, speed);
+    if (input.fPressed) { camera.position.y += speed; input.fPressed = false; }
 
     if (input.ePressed) {
       input.ePressed = false;
@@ -991,11 +970,6 @@ function animate() {
         scene.background = new THREE.Color(colors[Math.floor(Math.random() * colors.length)]);
         playMonitorGlitch();
       }
-    }
-
-    if (gameState.finaleTimer > 8) {
-      document.getElementById('victory-overlay').classList.add('active');
-      gameState.grandFinale = 0;
     }
   }
 
@@ -1029,7 +1003,7 @@ function animate() {
     }
   }
 
-  if (isLocked() && !gameOver && !gameState.cameraAnim.active && gameState.eyeTrapStage === 0) {
+  if (isLocked() && !gameOver && !gameState.cameraAnim.active && gameState.eyeTrapStage === 0 && gameState.grandFinale === 0) {
     const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
     forward.y = 0;
     forward.normalize();

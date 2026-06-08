@@ -232,34 +232,36 @@ export function playDoorOpen() {
   if (!_audioCtx) return;
   const ac = _audioCtx;
 
-  const heavy = ac.createOscillator();
-  const hg = ac.createGain();
-  heavy.type = 'sawtooth';
-  heavy.frequency.setValueAtTime(120, ac.currentTime);
-  heavy.frequency.exponentialRampToValueAtTime(40, ac.currentTime + 1.0);
-  hg.gain.setValueAtTime(0.08, ac.currentTime);
-  hg.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 1.5);
-  heavy.connect(hg); hg.connect(ac.destination);
-  heavy.start(); heavy.stop(ac.currentTime + 1.5);
-
-  const creak = ac.createOscillator();
+  const click = ac.createOscillator();
   const cg = ac.createGain();
-  creak.type = 'triangle';
-  creak.frequency.setValueAtTime(600, ac.currentTime);
-  creak.frequency.setValueAtTime(800, ac.currentTime + 0.1);
-  creak.frequency.exponentialRampToValueAtTime(200, ac.currentTime + 0.8);
-  cg.gain.setValueAtTime(0.04, ac.currentTime);
-  cg.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 1.2);
-  creak.connect(cg); cg.connect(ac.destination);
-  creak.start(); creak.stop(ac.currentTime + 1.2);
+  click.type = 'sine';
+  click.frequency.setValueAtTime(900, ac.currentTime);
+  click.frequency.exponentialRampToValueAtTime(400, ac.currentTime + 0.06);
+  cg.gain.setValueAtTime(0.03, ac.currentTime);
+  cg.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.1);
+  click.connect(cg); cg.connect(ac.destination);
+  click.start(); click.stop(ac.currentTime + 0.1);
 
-  const thud = ac.createOscillator();
-  const tg = ac.createGain();
-  thud.type = 'sine';
-  thud.frequency.setValueAtTime(50, ac.currentTime);
-  thud.frequency.exponentialRampToValueAtTime(20, ac.currentTime + 0.3);
-  tg.gain.setValueAtTime(0.1, ac.currentTime);
-  tg.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.4);
-  thud.connect(tg); tg.connect(ac.destination);
-  thud.start(); thud.stop(ac.currentTime + 0.4);
+  const bass = ac.createOscillator();
+  const bg = ac.createGain();
+  bass.type = 'sine';
+  bass.frequency.setValueAtTime(55, ac.currentTime + 0.1);
+  bass.frequency.exponentialRampToValueAtTime(28, ac.currentTime + 3.0);
+  bg.gain.setValueAtTime(0.001, ac.currentTime);
+  bg.gain.linearRampToValueAtTime(0.05, ac.currentTime + 0.4);
+  bg.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 4.0);
+  bass.connect(bg); bg.connect(ac.destination);
+  bass.start(); bass.stop(ac.currentTime + 4.0);
+
+  const air = ac.createOscillator();
+  const ag = ac.createGain();
+  air.type = 'sine';
+  air.frequency.setValueAtTime(220, ac.currentTime + 0.3);
+  air.frequency.setValueAtTime(330, ac.currentTime + 1.5);
+  air.frequency.exponentialRampToValueAtTime(110, ac.currentTime + 4.0);
+  ag.gain.setValueAtTime(0.001, ac.currentTime);
+  ag.gain.linearRampToValueAtTime(0.015, ac.currentTime + 0.8);
+  ag.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 4.5);
+  air.connect(ag); ag.connect(ac.destination);
+  air.start(); air.stop(ac.currentTime + 4.5);
 }

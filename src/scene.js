@@ -2043,18 +2043,21 @@ function createStarfield() {
 function startEscapeEndingSequence() {
   gameState.grandFinale = 1;
   gameState.finaleTimer = 0;
-  gameState.finaleFreeFlight = false;
   playDoorOpen();
-  if (gameState.camera) {
-    gameState.finalePullbackStart = gameState.camera.position.clone();
-  }
-  setTimeout(() => { removeRoomShell(); }, 800);
+  setTimeout(() => {
+    removeRoomShell();
+    document.getElementById('victory-overlay').classList.add('active');
+    setTimeout(() => {
+      document.getElementById('victory-overlay').classList.remove('active');
+    }, 3000);
+  }, 800);
 }
 
 function removeRoomShell() {
   [_testRoom, _backWall, _hallway, _city, _forest, _hallwayLights, _projector, _dust].forEach(ref => { if (ref) ref.visible = false; });
   [switchGroupRef, comboGroupRef, puertaProxyRef, puertaRef].forEach(ref => { if (ref) ref.visible = false; });
   if (_doorEyeMesh) _doorEyeMesh.visible = false;
+  roomScreenMeshes.forEach(m => { if (m) m.visible = false; });
   if (_finalFloor) _finalFloor.visible = true;
   if (_starfield) _starfield.visible = true;
   if (mainScene) {
@@ -2181,10 +2184,10 @@ export const gameState = {
   grandFinale: 0,
   finaleTimer: 0,
   finaleCamStart: null,
-  finaleCamTarget: new THREE.Vector3(0, 5, 12),
+  finaleCamTarget: new THREE.Vector3(0, 8, 35),
   finaleFreeFlight: false,
   finalePullbackStart: null,
-  finalePullbackTarget: new THREE.Vector3(0, 5, 12),
+  finalePullbackTarget: new THREE.Vector3(0, 8, 35),
   finaleFlySpeed: 10,
   camera: null,
 };
