@@ -2166,7 +2166,7 @@ export const gameState = {
   remoteCollected: false,
   powerConnected: false,
   projectorOn: false,
-  combinationDigits: { violet: 0, red: 8, green: 0, blue: 0 },
+  combinationDigits: { violet: -1, red: 8, green: -1, blue: -1 },
   blueCode: { solved: false, digit: 0, pushedCount: 0 },
   violetCode: { solved: false, digit: 0, targetScreenIdx: -1 },
   dizzyEndTime: 0,
