@@ -1688,7 +1688,7 @@ function createProjector() {
 }
 
 function createDustParticles() {
-  const count = 75;
+  const count = 120;
   const geo = new THREE.BufferGeometry();
   const positions = new Float32Array(count * 3);
   const baseZ = -ROOM_DEPTH / 2 - SOUTH_EXPAND;
@@ -1702,9 +1702,9 @@ function createDustParticles() {
 
   const mat = new THREE.PointsMaterial({
     color: 0x8899aa,
-    size: 0.015,
+    size: 0.018,
     transparent: true,
-    opacity: 0.3,
+    opacity: 0.45,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
   });
@@ -2427,16 +2427,16 @@ export function createExtraInteractables(scene) {
   } while (!rValid);
 
   const remoteMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.5, metalness: 0.3 });
-  const remote = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.03, 0.14), remoteMat);
-  remote.position.set(rPos.x, 0.015, rPos.z);
+  const remote = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.04, 0.18), remoteMat);
+  remote.position.set(rPos.x, 0.02, rPos.z);
   scene.add(remote);
   meshes.push(remote);
 
   const remoteLedMat = new THREE.MeshStandardMaterial({
     color: 0xff2200, emissive: 0xff2200, emissiveIntensity: 1.5,
   });
-  const remoteLed = new THREE.Mesh(new THREE.SphereGeometry(0.008, 8, 8), remoteLedMat);
-  remoteLed.position.set(rPos.x, 0.03, rPos.z - 0.04);
+  const remoteLed = new THREE.Mesh(new THREE.SphereGeometry(0.012, 8, 8), remoteLedMat);
+  remoteLed.position.set(rPos.x, 0.04, rPos.z - 0.055);
   scene.add(remoteLed);
 
   data.set(remote, {

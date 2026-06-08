@@ -30,7 +30,7 @@ export const LIGHTING_PRESETS = {
     fluorescentIntensity: 5.0,
     glowEmission: 0x99aadd,
     glowIntensity: 2.0,
-    fogDensity: 0.008,
+    fogDensity: 0.025,
   },
   blackout: {
     ambientColor: 0x1a1122,
@@ -39,7 +39,7 @@ export const LIGHTING_PRESETS = {
     fluorescentIntensity: 0.80,
     glowEmission: 0x7744bb,
     glowIntensity: 0.4,
-    fogDensity: 0.035,
+    fogDensity: 0.055,
   },
 };
 

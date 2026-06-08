@@ -650,9 +650,8 @@ function updateTelon(t, camera) {
       const cam = gameState.camera;
       if (cam && !gameState.cameraAnim.active) {
         const telonCenter = new THREE.Vector3(0, 2.5, -7.5);
-        const dir = new THREE.Vector3().subVectors(telonCenter, cam.position).normalize();
-        const dist = cam.position.distanceTo(telonCenter);
-        const targetPos = cam.position.clone().add(dir.multiplyScalar(Math.min(2.5, dist - 1.5)));
+        const targetPos = new THREE.Vector3(0, 1.7, -5.0);
+        const dir = new THREE.Vector3().subVectors(telonCenter, targetPos).normalize();
 
         gameState.cameraAnim.startPos = cam.position.clone();
         gameState.cameraAnim.targetPos = targetPos;
@@ -1107,9 +1106,9 @@ function animate() {
     if (t < gameState.dizzyEndTime) {
       const d = (gameState.dizzyEndTime - t) / 15;
       const intensity = 0.5 + d * 0.5;
-      camera.fov = 75 + Math.sin(t * 1.2) * 8 * intensity;
+      camera.fov = 75 + Math.sin(t * 1.2) * 3 * intensity;
       camera.updateProjectionMatrix();
-      chromaticPass.uniforms.amount.value = 0.03 * intensity;
+      chromaticPass.uniforms.amount.value = 0.008 * intensity;
       chromaticPass.uniforms.time.value = t;
       chromaticPass.enabled = true;
     } else if (gameState.dizzyEndTime > 0) {
